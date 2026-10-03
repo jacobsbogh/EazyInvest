@@ -2,9 +2,9 @@
 
 ## Connection and release stage (owner-led)
 
-1. Finish Firebase Spark Google sign-in, private owner UID document, and Firestore rules deployment. Confirm a different authenticated account is denied. Do not upgrade billing.
-2. Select the market provider plan and validate the six exact exchange listings, history coverage, FX availability, request limits, and personal-use licensing.
-3. Set GitHub Pages build variables and add the authorized hostname in Firebase Auth. Repository and CI are connected; subpath browser tests are implemented.
+1. Finish the first private release: dedicated email/password owner sign-in, Belgium Firestore on Spark, owner UID document, deployed rules and GitHub Pages publication. Verify owner save/reload and sign-out on the published site. Automated emulator tests cover unrelated-account denial. Do not upgrade billing.
+2. After that release, select the market provider plan and validate the six exact exchange listings, history coverage, FX availability, request limits, and personal-use licensing. The workflow template is inactive.
+3. Keep GitHub Pages build variables and the authorized hostname in Firebase Auth current. Repository and CI are connected; publication is manual and subpath browser tests are implemented.
 4. Configure the desired scheduled development workflow, model, run budget, and review process. There is no existing schedule to modify.
 
 ## Highest-value product improvements
@@ -25,4 +25,4 @@
 
 ## Implemented in the initial build
 
-Dashboard; deterministic planner; ASK and share-income illustrations; catalog and comparisons; watchlist notes; validated DKK ledger; CSV and JSON backups; six lessons; responsive layouts; Spark Firestore transactions and revision rules; isolated market writer; GitHub Actions price updates; unit/rule/browser tests; CI and manual Pages publication.
+Dashboard; deterministic planner; ASK and share-income illustrations; catalog and comparisons; watchlist notes; validated DKK ledger; CSV and JSON backups; six lessons; responsive layouts; email/password sign-in; Spark Firestore transactions and revision rules; isolated market-writer implementation; optional GitHub Actions price-update template; unit/rule/browser tests; CI and manual Pages publication.

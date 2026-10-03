@@ -6,8 +6,8 @@ Project: `eazyinvest-c3887`. Repository: [jacobsbogh/EazyInvest](https://github.
 
 ## Firebase and owner access
 
-1. In [Firestore](https://console.firebase.google.com/project/eazyinvest-c3887/firestore), create the default database in **production mode**, Standard edition, preferably `europe-west1` (Belgium). Location is a lasting choice.
-2. Enable **Google** under [Authentication providers](https://console.firebase.google.com/project/eazyinvest-c3887/authentication/providers).
+1. In [Firestore](https://console.firebase.google.com/project/eazyinvest-c3887/firestore), use the default database in **production mode**, Standard edition, `europe-west1` (Belgium). Inspect the existing database first; create it only if absent. Location is a lasting choice.
+2. Enable **Email/Password** under [Authentication providers](https://console.firebase.google.com/project/eazyinvest-c3887/authentication/providers), with email-link sign-in disabled. Create a dedicated owner account through Authentication → Users if one does not exist. Disable Google sign-in. Enter the app password only in Firebase's account form or the app's sign-in form.
 3. In Authentication → Settings → Authorized domains, add `jacobsbogh.github.io`. For local use add both `localhost` and `127.0.0.1`; Vite uses the latter.
 4. The EazyInvest web app is registered as `1:13783355390:web:70b6f26128c6e8dd817aaf`. Public configuration is saved in ignored `.env.local` on the setup machine. To regenerate it on another checkout:
 
@@ -21,7 +21,7 @@ npm run verify:backend
 
 The helper will not overwrite existing configuration. The public Firebase API key is not a provider secret. The verification script expects anonymous read denial; owner and stranger verification remains necessary.
 
-Run `npm run dev`, open `http://127.0.0.1:5173/EazyInvest/`, and sign in with Google once. Access is initially denied. Copy your UID from Authentication → Users, then create this document in the privileged Firestore console:
+Copy the dedicated password account's UID from Authentication → Users, then create this document in the privileged Firestore console. Preserve existing fields if it already exists:
 
 ```text
 Collection: config
@@ -29,7 +29,7 @@ Document: access
 Field: ownerUid (string) = YOUR_FIREBASE_AUTH_UID
 ```
 
-Reload, save a plan, and reload again. Check that a different Google account is denied. Ordinary app users cannot change the allowlist.
+Run `npm run dev`, open `http://127.0.0.1:5173/EazyInvest/`, and sign in with that account's email and password. Save a plan and reload to verify persistence. Check that a different authenticated account is denied and signing out removes access. Ordinary app users cannot change the allowlist. The app does not offer public registration or upload demo records automatically.
 
 ## GitHub Pages
 
@@ -50,7 +50,7 @@ The sign-in page, bundle and source are public. Firebase records are private. A 
 
 This is deferred. The workflow is an inactive template at `docs/market-data.yml.example`; it runs only after being moved to `.github/workflows/market-data.yml` during a later setup step.
 
-1. Enable Email/Password in Authentication alongside Google.
+1. Keep Email/Password enabled in Authentication.
 2. Create a dedicated Authentication user for the market job with a strong unique password. It need not receive email. **Do not use the owner account.**
 3. Add that UID as the string field `marketWriterUid` in `config/access`, preserving `ownerUid`.
 4. Add these [Actions secrets](https://github.com/jacobsbogh/EazyInvest/settings/secrets/actions): `MARKET_SYNC_EMAIL`, `MARKET_SYNC_PASSWORD`, `TWELVE_DATA_API_KEY`. Enter secrets through GitHub's form, not chat, command arguments, or repository files. No admin/service-account key is needed.

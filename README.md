@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-Without `.env.local`, choose **Explore the demo**. Generated example prices and holdings stay in browser storage. With the connected configuration, open `http://127.0.0.1:5173/EazyInvest/` and use Google sign-in. Cloud access requires deployed rules and the owner's UID in `config/access`.
+Without `.env.local`, choose **Explore the demo**. Generated example prices and holdings stay in browser storage. With the connected configuration, open `http://127.0.0.1:5173/EazyInvest/` and sign in with the dedicated owner's email and password. Cloud access requires deployed rules and the owner's UID in `config/access`. Account creation is managed in the Firebase console.
 
 ## Features
 
@@ -22,7 +22,7 @@ Without `.env.local`, choose **Explore the demo**. Generated example prices and 
 - Six reference investments, search/filter, comparisons, watchlists and research notes.
 - DKK buy/sell/dividend ledger with average purchase cost, historical transaction FX, gains, reviewed CSV imports and JSON backups.
 - Six investing lessons and 2026 Danish tax calculators with official SKAT sources.
-- Google owner sign-in, private Firestore transactions, revision conflict protection and responsive layouts.
+- Email/password owner sign-in, private Firestore transactions, revision conflict protection and responsive layouts.
 - Optional GitHub Actions market job: credentials remain in Actions secrets, and a restricted writer cannot read your portfolio.
 
 The catalog is a starting universe, not a buy list. Fund classification and SKAT positivliste membership are explicitly unverified. Prices are not total returns; dividends and consistent corporate-action adjustment require an appropriate data contract. Provider coverage/licensing depends on the selected plan. Missing live data remains missing.
@@ -48,7 +48,7 @@ npm run test:cloud
 npm run format:check
 ```
 
-Backend tests use local Auth/Firestore emulators with `demo-eazyinvest` and require Java 21+. The runner recognizes Android Studio's bundled Java on Windows. Cloud browser tests exercise Google emulator sign-in, owner save/reload, sign-out and rejected accounts on the `/EazyInvest/` path. The popup loads Google/CDN scripts and needs internet access. Demo tests disable cloud configuration even if `.env.local` exists. Cloud test builds stay in `.cache/cloud-dist`.
+Backend tests use local Auth/Firestore emulators with `demo-eazyinvest` and require Java 21+. The runner recognizes Android Studio's bundled Java on Windows. Cloud browser tests exercise email/password sign-in, invalid credentials, owner save/reload, sign-out, rejected accounts and accessible desktop/mobile login on the `/EazyInvest/` path. Demo tests disable cloud configuration even if `.env.local` exists. Cloud test builds stay in `.cache/cloud-dist`.
 
 ```sh
 npm run check:deploy

@@ -1,8 +1,8 @@
 # Architecture: Firebase Spark
 
-GitHub Pages serves React, HashRouter and Recharts. Google sign-in identifies the owner. The browser reads and saves a private Firestore workspace using a transaction. Demo mode uses separate localStorage.
+GitHub Pages serves React, HashRouter and Recharts. Email/password sign-in identifies the dedicated owner account, created through the Firebase console. The app has no registration flow. The browser reads and saves a private Firestore workspace using a transaction. Demo mode uses separate localStorage.
 
-A separate GitHub Actions job fetches Twelve Data prices and writes the private market cache using a restricted Firebase email/password account. There are no Cloud Functions, Cloud Run services, Cloud Scheduler jobs, Secret Manager resources, or billing requirements.
+An optional GitHub Actions job can fetch Twelve Data prices and write the private market cache using a separate restricted Firebase email/password account. Its workflow remains an inactive template at `docs/market-data.yml.example`. There are no Cloud Functions, Cloud Run services, Cloud Scheduler jobs, Secret Manager resources, or billing requirements.
 
 ## Permissions
 
@@ -31,7 +31,7 @@ It checks all six catalog IDs, skips valid caches younger than 24 hours, and mak
 
 The job receives three Actions secrets: `MARKET_SYNC_EMAIL`, `MARKET_SYNC_PASSWORD`, and `TWELVE_DATA_API_KEY`. Only the sync step receives them. Raw provider exceptions, URLs and response bodies are not logged. No data or secrets are committed as artifacts.
 
-The weekday schedule runs at 21:37 UTC only when `MARKET_SYNC_ENABLED=true`. Manual runs are available. GitHub may delay schedules or disable inactive public-repository schedules. The UI's refresh button reads the cache; it does not start a job or query the provider.
+Once the template is activated, the weekday schedule runs at 21:37 UTC only when `MARKET_SYNC_ENABLED=true`. Manual runs are then available. GitHub may delay schedules or disable inactive public-repository schedules. The UI's refresh button reads the cache; it does not start a job or query the provider.
 
 ## Code and verification
 
@@ -39,6 +39,6 @@ The weekday schedule runs at 21:37 UTC only when `MARKET_SYNC_ENABLED=true`. Man
 - `shared/`: deterministic calculations, tax snapshot, schemas and catalog.
 - `jobs/`: provider adapter and GitHub Actions entry point.
 - `firestore.rules`: ownership, data bounds, revisions and writer isolation.
-- Tests cover calculations, parsing, real emulator transactions, rules, Google emulator popup, desktop/mobile UI and Pages subpaths.
+- Tests cover calculations, parsing, real emulator transactions, rules, password sign-in and invalid credentials, desktop/mobile UI and Pages subpaths.
 
 Production authorized domains, owner UID, provider coverage/licensing and published sign-in still need verification during setup. No trades, broker connections, analytics or in-app AI calls are implemented.

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useApp, friendlyError } from './lib/store';
 import { firebaseConfigured, firebasePartial, login } from './lib/firebase';
+import { Field } from './components/ui';
 import Overview from './pages/Overview';
 import Planner from './pages/Planner';
 import Explore from './pages/Explore';
@@ -49,14 +50,19 @@ function Welcome() {
   const { enterDemo, status, error, reload, leave } = useApp();
   const [pending, setPending] = useState(false);
   const [loginError, setLoginError] = useState('');
-  async function signIn() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  async function signIn(event: React.FormEvent) {
+    event.preventDefault();
+    if (pending) return;
     setPending(true);
     setLoginError('');
     try {
-      await login();
+      await login(email, password);
     } catch (err) {
       setLoginError(friendlyError(err));
     } finally {
+      setPassword('');
       setPending(false);
     }
   }
@@ -97,14 +103,45 @@ function Welcome() {
           ) : (
             <div className="welcome-actions">
               {firebaseConfigured && (
-                <button className="button primary" onClick={() => void signIn()} disabled={pending}>
-                  {pending ? 'Signing in…' : 'Sign in with Google'}
-                  <ArrowRight size={18} />
-                </button>
+                <form
+                  className="welcome-login"
+                  aria-label="Sign in to your workspace"
+                  aria-busy={pending}
+                  aria-describedby={loginError ? 'sign-in-error' : undefined}
+                  onSubmit={(event) => void signIn(event)}
+                >
+                  <Field label="Email">
+                    <input
+                      type="email"
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      required
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      disabled={pending}
+                    />
+                  </Field>
+                  <Field label="Password">
+                    <input
+                      type="password"
+                      autoComplete="current-password"
+                      required
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      disabled={pending}
+                    />
+                  </Field>
+                  <button className="button primary full-width" disabled={pending}>
+                    {pending ? 'Signing in…' : 'Sign in'}
+                    <ArrowRight size={18} />
+                  </button>
+                </form>
               )}
               <button
                 className={`button ${firebaseConfigured ? 'secondary' : 'primary'}`}
                 onClick={enterDemo}
+                disabled={pending}
               >
                 Explore the demo
                 <ArrowRight size={18} />
@@ -117,7 +154,7 @@ function Welcome() {
             </div>
           )}
           {(loginError || firebasePartial) && (
-            <p className="form-error" role="alert">
+            <p className="form-error" id="sign-in-error" role="alert">
               {loginError ||
                 'Firebase configuration is incomplete. Finish all four public configuration fields before signing in.'}
             </p>

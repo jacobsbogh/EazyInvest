@@ -2,8 +2,7 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   connectAuthEmulator,
-  GoogleAuthProvider,
-  signInWithPopup,
+  signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
 } from 'firebase/auth';
@@ -27,9 +26,9 @@ if (import.meta.env.VITE_USE_EMULATORS === 'true' && auth && db) {
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
 }
 export { onAuthStateChanged };
-export async function login() {
+export async function login(email: string, password: string) {
   if (!auth) throw new Error('Firebase has not been connected yet.');
-  await signInWithPopup(auth, new GoogleAuthProvider());
+  await signInWithEmailAndPassword(auth, email.trim(), password);
 }
 export async function logout() {
   if (auth) await signOut(auth);

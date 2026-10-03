@@ -218,9 +218,24 @@ export function friendlyError(err: unknown): string {
     return 'This account does not have access. The owner allowlist must be configured in Firebase.';
   if (code?.includes('aborted'))
     return 'This workspace changed in another tab. Reload before saving again; your edit was not saved.';
-  if (code?.includes('popup-closed')) return 'Sign-in was cancelled. You can try again.';
+  if (
+    code &&
+    [
+      'auth/invalid-credential',
+      'auth/invalid-login-credentials',
+      'auth/wrong-password',
+      'auth/user-not-found',
+      'auth/invalid-email',
+    ].includes(code)
+  )
+    return 'The email or password is incorrect. Please try again.';
+  if (code === 'auth/too-many-requests')
+    return 'Too many sign-in attempts. Please wait a while before trying again.';
+  if (code === 'auth/user-disabled')
+    return 'This account is disabled. Contact the workspace owner.';
   if (code?.includes('unavailable') || code?.includes('network'))
     return 'The connection is unavailable. Your change was not saved. Please try again.';
+  if (code?.startsWith('auth/')) return 'Could not sign in. Please try again later.';
   if (err instanceof Error && err.name !== 'ZodError') return err.message;
   return 'The data is invalid or could not be saved. Check the values and try again.';
 }

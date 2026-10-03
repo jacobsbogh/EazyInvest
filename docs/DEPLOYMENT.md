@@ -4,6 +4,18 @@ Project: `eazyinvest-c3887`. Repository: [jacobsbogh/EazyInvest](https://github.
 
 **Keep Spark. Do not link billing.** This app uses Firebase Authentication and Firestore. There are no Cloud Functions to deploy. Live prices are optional and can be connected after publication.
 
+## Initial release status
+
+Published on 2026-10-04 at [EazyInvest](https://jacobsbogh.github.io/EazyInvest/) from app commit `d104116`. [CI](https://github.com/jacobsbogh/EazyInvest/actions/runs/37157730911) and [Pages publication](https://github.com/jacobsbogh/EazyInvest/actions/runs/37158087461) passed.
+
+- The free-tier default Firestore database is in Belgium (`europe-west1`), with rules/indexes deployed and `config/access.ownerUid` assigned to the dedicated password account.
+- Email/password sign-in is enabled, Google sign-in is disabled, and the Pages/local authorized domains are configured.
+- Anonymous Firestore reads are denied. Emulator tests pass for owner save/reload/sign-out, unrelated-account denial, invalid credentials, and accessible desktop/mobile login.
+- The actual HTTPS site passes desktop/mobile password-form, accessibility, and all seven demo-screen checks, with no browser errors.
+- The owner's direct sign-in/save/reload/sign-out check on the published site remains pending. Enter the password only on the site; automated checks do not use it.
+
+Live market data and recurring development automation are inactive. The setup instructions below also serve as the runbook for future recovery or publication.
+
 ## Firebase and owner access
 
 1. In [Firestore](https://console.firebase.google.com/project/eazyinvest-c3887/firestore), use the default database in **production mode**, Standard edition, `europe-west1` (Belgium). Inspect the existing database first; create it only if absent. Location is a lasting choice.

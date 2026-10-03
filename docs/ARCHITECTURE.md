@@ -41,4 +41,4 @@ Once the template is activated, the weekday schedule runs at 21:37 UTC only when
 - `firestore.rules`: ownership, data bounds, revisions and writer isolation.
 - Tests cover calculations, parsing, real emulator transactions, rules, password sign-in and invalid credentials, desktop/mobile UI and Pages subpaths.
 
-Production authorized domains, owner UID, provider coverage/licensing and published sign-in still need verification during setup. No trades, broker connections, analytics or in-app AI calls are implemented.
+The initial deployment has configured authorized domains, the dedicated password owner's UID, and a Belgium Firestore database on Spark. See [release status](DEPLOYMENT.md) for validation and the remaining direct owner check. Provider coverage/licensing is deferred until live prices are connected. No trades, broker connections, analytics or in-app AI calls are implemented.

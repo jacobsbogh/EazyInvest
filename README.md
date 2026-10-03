@@ -4,6 +4,8 @@ A personal investing workspace for a beginner in Denmark, using personal money a
 
 Source: [jacobsbogh/EazyInvest](https://github.com/jacobsbogh/EazyInvest). Firebase project: `eazyinvest-c3887`. Follow [the setup runbook](docs/DEPLOYMENT.md) for owner access and publication.
 
+Published app: [EazyInvest](https://jacobsbogh.github.io/EazyInvest/). The initial release uses dedicated email/password sign-in and private Firestore storage in Belgium on Spark. Live prices and recurring development automation remain deferred.
+
 ## Run locally
 
 Use Node 22 (Node 24 also builds).

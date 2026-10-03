@@ -1,8 +1,8 @@
 # Prioritized backlog
 
-## Connection and release stage (owner-led)
+## Release follow-up (owner-led)
 
-1. Finish the first private release: dedicated email/password owner sign-in, Belgium Firestore on Spark, owner UID document, deployed rules and GitHub Pages publication. Verify owner save/reload and sign-out on the published site. Automated emulator tests cover unrelated-account denial. Do not upgrade billing.
+1. Confirm the owner's direct sign-in/save/reload/sign-out check on the [published first release](https://jacobsbogh.github.io/EazyInvest/). Dedicated email/password sign-in, Belgium Firestore on Spark, owner UID configuration, rules and Pages publication are complete. Automated emulator tests cover owner persistence and unrelated-account denial; see [release status](DEPLOYMENT.md). Do not upgrade billing.
 2. After that release, select the market provider plan and validate the six exact exchange listings, history coverage, FX availability, request limits, and personal-use licensing. The workflow template is inactive.
 3. Keep GitHub Pages build variables and the authorized hostname in Firebase Auth current. Repository and CI are connected; publication is manual and subpath browser tests are implemented.
 4. Configure the desired scheduled development workflow, model, run budget, and review process. There is no existing schedule to modify.

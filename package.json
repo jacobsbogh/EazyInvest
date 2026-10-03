@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "functions"
+    "jobs"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -18,12 +18,13 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:rules": "node scripts/test-backend.mjs --rules",
-    "test:backend": "npm run build:functions && node scripts/test-backend.mjs",
-    "test:cloud": "npm run build:functions && node scripts/test-backend.mjs --browser",
+    "test:backend": "node scripts/test-backend.mjs",
+    "test:cloud": "node scripts/test-backend.mjs --browser",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "build:functions": "npm run build --workspace functions",
-    "check": "npm run build && npm run build:functions && npm test"
+    "build:jobs": "npm run build --workspace jobs",
+    "sync:market": "npm run build:jobs && node jobs/lib/jobs/src/refresh.js",
+    "check": "npm run build && npm run build:jobs && npm test"
   },
   "dependencies": {
     "firebase": "^12.0.0",
@@ -45,6 +46,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "firebase-tools": "^15.32.0",
+    "firebase-admin": "^14.5.0",
     "prettier": "^3.9.9",
     "typescript": "~5.9.0",
     "vite": "^7.0.0",

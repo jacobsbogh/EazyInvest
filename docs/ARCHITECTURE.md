@@ -1,60 +1,44 @@
-# Architecture and boundaries
+# Architecture: Firebase Spark
 
-```text
-GitHub Pages / Vite development server
-  React + HashRouter + Recharts
-    ├─ demo workspace → validated localStorage (eazyinvest.demo.v1)
-    └─ owner sign-in → Firebase Authentication (Google)
-         ├─ Firestore GET → users/{uid}/workspace/current
-         ├─ Firestore GET → market/{catalogId}
-         ├─ callable saveWorkspace → validation + revision transaction
-         └─ callable getMarketSeries → cache → quota → provider + FX
+GitHub Pages serves React, HashRouter and Recharts. Google sign-in identifies the owner. The browser reads and saves a private Firestore workspace using a transaction. Demo mode uses separate localStorage.
 
-Weekday scheduler (disabled by default)
-  → owner’s watchlist and ledger → same market-data loader
-```
+A separate GitHub Actions job fetches Twelve Data prices and writes the private market cache using a restricted Firebase email/password account. There are no Cloud Functions, Cloud Run services, Cloud Scheduler jobs, Secret Manager resources, or billing requirements.
 
-## Files
+## Permissions
 
-- `src/pages/`: seven user-facing screens.
-- `src/components/`: chart and UI primitives.
-- `src/lib/store.tsx`: session state, persistence, notifications, market cache.
-- `src/lib/firebase.ts`: client initialization and callable adapters.
-- `src/lib/demo.ts`: clearly synthetic example data and empty defaults.
-- `src/lib/csv.ts`: CSV contract and validation.
-- `shared/`: schemas, tax constants, instrument catalog and deterministic finance logic. Imported by frontend, backend and tests.
-- `functions/src/`: cloud callable endpoints, scheduled refresh, provider validation.
-- `firestore.rules`: owner-only document reads; all direct writes denied.
+| Document                             | Owner               | Market writer       | Everyone else |
+| ------------------------------------ | ------------------- | ------------------- | ------------- |
+| `config/access`                      | Denied              | Denied              | Denied        |
+| `users/{ownerUid}/workspace/current` | Get, create, update | Denied              | Denied        |
+| `market/{catalogId}`                 | Get                 | Get, create, update | Denied        |
+| Lists, deletes and other paths       | Denied              | Denied              | Denied        |
 
-Functions compile the shared code into `functions/lib/shared` and their handlers into `functions/lib/functions/src`. The function package entry is the compiled index. No frontend source, local storage, or browser Firebase API key can grant administrative access.
+The privileged Firebase console maintains `config/access`, containing `ownerUid` and optionally `marketWriterUid`. Use separate accounts. Missing configuration fails closed. No writer is needed until prices are connected.
 
-## Documents
+## Workspace validation and concurrency
 
-| Path                            | Contents                                                    | Client access              |
-| ------------------------------- | ----------------------------------------------------------- | -------------------------- |
-| `config/access`                 | `ownerUid` set through privileged administration            | None                       |
-| `users/{uid}/workspace/current` | `{ revision, data }`                                        | Owner GET only for own UID |
-| `market/{catalogId}`            | Validated series, currency, FX, observation/retrieval dates | Owner GET only             |
-| `internal/providerQuota`        | Per-minute and per-day counters                             | None                       |
-| `internal/lease-{catalogId}`    | Expiring lease + random token                               | None                       |
+`src/lib/cloud.ts` validates the full workspace, including ledger chronology, overselling, duplicate IDs, real dates and a 750 KB serialized size limit. A Firestore transaction compares the expected revision and commits the next revision with the data. Stale saves fail rather than overwrite newer data.
 
-The Admin SDK bypasses Firestore rules, so **every user-invoked function independently checks authentication and matches the owner UID from `config/access`**. The client cannot edit this document. If it is absent or invalid, access fails closed. The scheduler runs with service-account privileges and reads the same configured owner.
+Firestore rules independently enforce ownership, exact top-level fields, plan types/bounds, collection limits and sequential revisions. Rules do **not** perform complete per-entry ledger validation or recompute holdings. The owner could bypass the client using a custom client and corrupt their own data. Other users cannot access it; malformed loaded records fail validation. This is the explicit tradeoff for a single-owner Spark app.
 
-All workspace mutations go through `saveWorkspace`. Zod validates shape and numeric bounds, and ledger validation rejects overselling, duplicate IDs, and future/invalid dates. Data and revision are committed atomically. An expected-revision mismatch rejects the write; it never silently overwrites newer data.
+Cloud saves require connectivity and never fall back to demo storage. Firestore caches cloud data in memory only; Auth persists the login session. Sign-out clears application data. Demo records are never uploaded automatically.
 
-## Limits and failure behavior
+## Market job
 
-- Up to 500 transactions, six catalog watchlist entries, and 750 KB serialized cloud workspace payload. CSV/JSON imports are limited to 1 MB before parsing.
-- Client cloud state is in memory. Demo state uses a separate local-storage key. No cloud-to-demo fallback or automatic demo upload exists.
-- Provider requests can target only catalog IDs; callers cannot provide arbitrary URLs, raw SQL, API keys, exchange names, or provider query parameters.
-- API key stays in Secret Manager. Provider exceptions and raw responses are not logged, because upstream URLs may contain credentials.
-- Cached market data is reused for 24 hours. An expiring per-instrument lease limits duplicate concurrent refreshes. Firestore transactions enforce shared request counters across function instances.
-- Function maximum instances: 2; scheduled maximum: 1. App provider budget: 8 requests/minute and 100/UTC-day. A single instrument can consume two requests (price and FX). No automatic retry loop is used for provider errors.
-- Scheduled refresh waits between instruments. Concurrent interactive refreshes can still exhaust the shared minute budget; failed instruments retain old cached data.
-- Provider symbol/currency, dates, finite positive numbers and duplicate dates are validated. Upstream error payloads are not accepted as prices.
+`jobs/src/provider.ts` validates symbols, currencies, dates, positive finite prices and duplicate dates. `jobs/src/refresh.ts` uses normal Firebase client APIs, so rules apply. It has no admin credential and cannot read the owner's portfolio, watchlist, ledger or allowlist.
 
-## Pending connection verification
+It checks all six catalog IDs, skips valid caches younger than 24 hours, and makes at most 12 requests/run with eight-second spacing. GitHub concurrency serializes runs. Failed instruments retain previous data. These are per-run limits, not a shared daily provider budget or a guarantee of free coverage. Manual reruns can consume additional credits for uncached instruments.
 
-The emulator tests verify local rule behavior, not IAM, billing, authorized domains, a deployed function, or a paid data subscription. At connection time, test the owner and an unrelated account against deployed reads and callables. Verify sign-out, no client writes, exact instrument mappings, actual provider quotas, delayed-price status, exchange rights, and Secret Manager access.
+The job receives three Actions secrets: `MARKET_SYNC_EMAIL`, `MARKET_SYNC_PASSWORD`, and `TWELVE_DATA_API_KEY`. Only the sync step receives them. Raw provider exceptions, URLs and response bodies are not logged. No data or secrets are committed as artifacts.
 
-App Check may be added for abuse protection once the hosting domain and attestation configuration are known. It is not a substitute for authentication or owner authorization. No analytics, brokerage credentials, trading endpoints, or AI inference inside the investing app are configured.
+The weekday schedule runs at 21:37 UTC only when `MARKET_SYNC_ENABLED=true`. Manual runs are available. GitHub may delay schedules or disable inactive public-repository schedules. The UI's refresh button reads the cache; it does not start a job or query the provider.
+
+## Code and verification
+
+- `src/pages/`: seven screens; `src/lib/`: state, cloud adapters and import/export.
+- `shared/`: deterministic calculations, tax snapshot, schemas and catalog.
+- `jobs/`: provider adapter and GitHub Actions entry point.
+- `firestore.rules`: ownership, data bounds, revisions and writer isolation.
+- Tests cover calculations, parsing, real emulator transactions, rules, Google emulator popup, desktop/mobile UI and Pages subpaths.
+
+Production authorized domains, owner UID, provider coverage/licensing and published sign-in still need verification during setup. No trades, broker connections, analytics or in-app AI calls are implemented.

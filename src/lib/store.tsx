@@ -168,9 +168,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       setNotice(
         failed
-          ? `${failed} instrument(s) could not update. Existing data is retained; check the provider connection and coverage.`
+          ? `${failed} instrument(s) have no available update. Existing data is retained. Check the market-data workflow on GitHub.`
           : unique.length
-            ? 'Market data checked. Recent cached results may be reused.'
+            ? 'Latest synced market data loaded. Provider updates run separately on GitHub.'
             : 'Add an investment to your watchlist or portfolio first.',
       );
     } finally {

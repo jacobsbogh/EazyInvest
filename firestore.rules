@@ -6,16 +6,63 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/config/access)
         && get(/databases/$(database)/documents/config/access).data.ownerUid == request.auth.uid;
     }
-    // All mutations pass through callable functions for validation and revision checks.
+    function marketWriter() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/config/access)
+        && get(/databases/$(database)/documents/config/access).data.marketWriterUid == request.auth.uid;
+    }
+    function bounded(value, min, max) { return value is number && value >= min && value <= max; }
+    function validPlan(p) {
+      return p is map
+        && p.keys().hasAll(['initial','monthly','years','returnRate','fee','inflation','goal','account','realTerms','married'])
+        && p.keys().hasOnly(['initial','monthly','years','returnRate','fee','inflation','goal','account','realTerms','married'])
+        && bounded(p.initial, 0, 100000000) && bounded(p.monthly, 0, 1000000)
+        && p.years is int && bounded(p.years, 1, 40)
+        && bounded(p.returnRate, -10, 20) && bounded(p.fee, 0, 5)
+        && bounded(p.inflation, 0, 15) && bounded(p.goal, 1, 100000000)
+        && p.account in ['general','ask','annual','none']
+        && p.realTerms is bool && p.married is bool;
+    }
+    function validWorkspace() {
+      let v = request.resource.data;
+      let d = v.data;
+      return v.keys().hasOnly(['revision','data']) && v.revision is int
+        && v.revision > 0 && d is map
+        && d.keys().hasAll(['version','name','plan','transactions','watchlist','completedLessons'])
+        && d.keys().hasOnly(['version','name','plan','transactions','watchlist','completedLessons'])
+        && d.version == 1 && d.name is string && d.name.size() >= 1 && d.name.size() <= 60
+        && validPlan(d.plan)
+        && d.transactions is list && d.transactions.size() <= 500
+        && d.watchlist is list && d.watchlist.size() <= 6
+        && d.completedLessons is list && d.completedLessons.size() <= 6
+        && d.completedLessons.toSet().size() == d.completedLessons.size()
+        && d.completedLessons.hasOnly(['starting','compounding','diversification','costs','danish-tax','behavior']);
+    }
+    // Rules enforce ownership, plan bounds and revisions. The client validates ledger semantics.
     match /users/{uid}/workspace/current {
       allow get: if owner() && request.auth.uid == uid;
-      allow list, write: if false;
+      allow create: if owner() && request.auth.uid == uid
+        && validWorkspace() && request.resource.data.revision == 1;
+      allow update: if owner() && request.auth.uid == uid
+        && validWorkspace() && request.resource.data.revision == resource.data.revision + 1;
+      allow list, delete: if false;
     }
     match /market/{instrumentId} {
-      allow get: if owner();
-      allow list, write: if false;
+      allow get: if owner() || marketWriter();
+      allow create, update: if marketWriter()
+        && instrumentId in ['vwce','eunl','is3n','sxr8','novo','msft']
+        && request.resource.data.keys().hasAll(['instrumentId','currency','source','fetchedAt','fxToDkk','fxDate','points'])
+        && request.resource.data.keys().hasOnly(['instrumentId','currency','source','fetchedAt','fxToDkk','fxDate','points'])
+        && request.resource.data.instrumentId == instrumentId
+        && request.resource.data.source == 'Twelve Data'
+        && request.resource.data.currency in ['EUR','USD','DKK']
+        && request.resource.data.fetchedAt is string && request.resource.data.fxDate is string
+        && bounded(request.resource.data.fxToDkk, 0.000001, 100000)
+        && request.resource.data.points is list
+        && request.resource.data.points.size() > 0 && request.resource.data.points.size() <= 6000;
+      allow list, delete: if false;
     }
-    // In particular, the client cannot change the owner or provider quota counters.
+    // Neither owner nor market writer can change the allowlist or access other paths.
     match /{document=**} { allow read, write: if false; }
   }
 }

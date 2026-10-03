@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { parseWorkspace, validateLedger } from '../../shared/schema';
 import { demoWorkspace, emptyWorkspace } from '../../src/lib/demo';
 import { importTransactions, exportTransactions } from '../../src/lib/csv';
-import { parsePriceResponse, fetchSeries } from '../../functions/src/provider';
+import { parsePriceResponse, fetchSeries } from '../../jobs/src/provider';
 import { getInstrument } from '../../shared/catalog';
 
 describe('workspace validation', () => {

@@ -19,7 +19,6 @@ describe('release configuration guard', () => {
     { VITE_USE_EMULATORS: 'true' },
     { VITE_FIREBASE_APP_ID: '1:123:android:abcdef' },
     { VITE_FIREBASE_AUTH_DOMAIN: 'https://example.com/path' },
-    { VITE_FIREBASE_FUNCTIONS_REGION: 'us-central1' },
     { VITE_BASE_PATH: 'EazyInvest' },
   ])('rejects invalid production configuration %j', (override) => {
     expect(validateDeployConfig({ ...configured, ...override }).length).toBeGreaterThan(0);

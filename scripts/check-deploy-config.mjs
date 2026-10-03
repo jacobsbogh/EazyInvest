@@ -30,8 +30,6 @@ export function validateDeployConfig(env) {
     errors.push('Deployment stopped: use the Firebase web app ID.');
   if (env.VITE_FIREBASE_API_KEY && !/^AIza[\w-]{35}$/.test(env.VITE_FIREBASE_API_KEY))
     errors.push('Deployment stopped: use the Firebase public web API key.');
-  if ((env.VITE_FIREBASE_FUNCTIONS_REGION || 'europe-west1') !== 'europe-west1')
-    errors.push('Deployment stopped: frontend region must match the backend (europe-west1).');
   if (!/^\/(?:[a-z0-9_.-]+\/)*$/i.test(env.VITE_BASE_PATH || '/'))
     errors.push(
       'Deployment stopped: base path must start and end with /, for example /EazyInvest/.',

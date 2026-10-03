@@ -1,10 +1,10 @@
 node_modules/
 dist/
 functions/lib/
+jobs/lib/
 .env
 .env.*
 !.env.example
-!functions/.env.example
 .secret.local
 *.log
 .firebase/
@@ -13,5 +13,6 @@ playwright-report/
 test-results/
 .DS_Store
 *.local
+*.local.json
 service-account*.json
 *.tsbuildinfo

@@ -188,8 +188,8 @@ export default function Settings() {
               </div>
             ))}
             <p className="text-small muted">
-              Your plan and records are separate from market data. Add investments to your
-              watchlist, then refresh to request available provider prices.
+              Your plan saves privately on Firebase Spark. Provider updates run through the
+              market-data workflow on GitHub; refreshing here loads its latest saved prices.
             </p>
           </section>
           <section className="card">

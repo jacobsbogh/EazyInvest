@@ -1,19 +1,15 @@
 import { spawn } from 'node:child_process';
-import { existsSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { delimiter } from 'node:path';
-// Local dummy secret only; never use real provider credentials during emulator tests.
-const file = 'functions/.secret.local';
 const rulesOnly = process.argv.includes('--rules');
 const browser = process.argv.includes('--browser');
-const created = !rulesOnly && !existsSync(file);
-if (created) writeFileSync(file, 'TWELVE_DATA_API_KEY=local-test-placeholder\n');
 const child = spawn(
   process.execPath,
   [
     'node_modules/firebase-tools/lib/bin/firebase.js',
     'emulators:exec',
     '--only',
-    rulesOnly ? 'firestore' : 'auth,firestore,functions',
+    rulesOnly ? 'firestore' : 'auth,firestore',
     '--project',
     'demo-eazyinvest',
     rulesOnly
@@ -40,11 +36,9 @@ const child = spawn(
   },
 );
 child.on('exit', (code) => {
-  if (created) unlinkSync(file);
   process.exit(code ?? 1);
 });
 child.on('error', (error) => {
-  if (created) unlinkSync(file);
   console.error(error.message);
   process.exit(1);
 });

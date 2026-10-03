@@ -33,11 +33,17 @@ try {
     ],
     { encoding: 'utf8', env: { ...process.env, DEBUG: '' } },
   );
-  if (result.status !== 0)
+  let response;
+  try {
+    response = JSON.parse(result.stdout);
+  } catch {
+    /* handled below */
+  }
+  if (response?.status !== 'success')
     throw new Error(
       'Could not read the web app configuration. Run npm run firebase -- login and verify the project/app IDs.',
     );
-  const config = JSON.parse(result.stdout).result?.sdkConfig;
+  const config = response.result?.sdkConfig;
   if (config?.projectId !== values.project || config?.appId !== values.app)
     throw new Error(
       'The returned web app does not match the requested project/app. Nothing was written.',
@@ -47,12 +53,15 @@ try {
     VITE_FIREBASE_AUTH_DOMAIN: config.authDomain,
     VITE_FIREBASE_PROJECT_ID: config.projectId,
     VITE_FIREBASE_APP_ID: config.appId,
-    VITE_FIREBASE_FUNCTIONS_REGION: 'europe-west1',
     VITE_USE_EMULATORS: 'false',
     VITE_BASE_PATH: values.base,
   };
   const errors = validateDeployConfig(env);
   if (errors.length) throw new Error(errors.join('\n'));
+  if (result.status !== 0)
+    console.warn(
+      'Firebase returned a valid configuration but reported a CLI shutdown error. The project/app values were verified.',
+    );
   writeFileSync(
     '.env.local',
     Object.entries(env)

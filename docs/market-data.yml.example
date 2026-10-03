@@ -1,0 +1,33 @@
+# Inactive template. Enable only when connecting market data in a later step.
+name: Refresh market data
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '37 21 * * 1-5'
+permissions:
+  contents: read
+concurrency:
+  group: market-data
+  cancel-in-progress: false
+jobs:
+  refresh:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.MARKET_SYNC_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:jobs
+      - name: Update restricted Firestore market cache
+        env:
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          MARKET_SYNC_EMAIL: ${{ secrets.MARKET_SYNC_EMAIL }}
+          MARKET_SYNC_PASSWORD: ${{ secrets.MARKET_SYNC_PASSWORD }}
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+        run: node jobs/lib/jobs/src/refresh.js

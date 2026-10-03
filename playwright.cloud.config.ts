@@ -17,7 +17,6 @@ export default defineConfig({
       VITE_FIREBASE_AUTH_DOMAIN: 'demo-eazyinvest.firebaseapp.com',
       VITE_FIREBASE_PROJECT_ID: 'demo-eazyinvest',
       VITE_FIREBASE_APP_ID: 'demo-app',
-      VITE_FIREBASE_FUNCTIONS_REGION: 'europe-west1',
       VITE_USE_EMULATORS: 'true',
       VITE_BASE_PATH: '/EazyInvest/',
     },

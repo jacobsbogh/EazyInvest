@@ -8,7 +8,7 @@ Use this prompt for a future project-scoped scheduled task:
 
 For financial logic: add independent expected-value cases, explain the assumptions in the UI, and update `docs/CALCULATIONS.md`. Verify changes to Danish tax rules against SKAT, version by tax year, and preserve the source and verification date. Do not infer a fund’s tax classification from its name, distributing/accumulating label, or price history.
 
-For access controls: test signed-out access, a different authenticated account, wrong UID paths, all direct writes, allowlist modifications, and callable authorization. A passing UI login test alone is insufficient.
+For access controls: test signed-out access, a different authenticated account, wrong UID paths, owner-only validated writes and revisions, allowlist modifications, and isolation of the market writer from personal records. A passing UI login test alone is insufficient. Preserve Firebase Spark; do not add Cloud Functions or link billing.
 
 For presentation: verify desktop and mobile, keyboard interaction, readable contrast, loading/empty/error states, and source/date labels.
 

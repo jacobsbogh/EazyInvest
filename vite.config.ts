@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks: {
           charts: ['recharts'],
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/functions'],
+          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
         },
       },
     },

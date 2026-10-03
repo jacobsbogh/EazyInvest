@@ -1,6 +1,7 @@
 node_modules
 dist
 functions/lib
+jobs/lib
 package-lock.json
 test-results
 playwright-report

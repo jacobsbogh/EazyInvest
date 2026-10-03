@@ -26,15 +26,6 @@ async function denied(label, url, init, expectedStatus, expectedCode) {
 for (const path of ['config/access', 'users/anonymous-probe/workspace/current', 'market/vwce']) {
   await denied(path, `${firestore}/${path}`, {}, 403, 'PERMISSION_DENIED');
 }
-for (const name of ['saveWorkspace', 'getMarketSeries']) {
-  await denied(
-    name,
-    `https://europe-west1-${project}.cloudfunctions.net/${name}`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"data":{}}' },
-    401,
-    'UNAUTHENTICATED',
-  );
-}
 if (failed) process.exitCode = 1;
 else
   console.log(

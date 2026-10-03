@@ -41,7 +41,12 @@ async function signIn(page: Page, email: string) {
   const popupPromise = page.waitForEvent('popup');
   await page.getByRole('button', { name: 'Sign in with Google' }).click();
   const popup = await popupPromise;
+  // The emulator renders account rows before its CDN script attaches click handlers.
+  // A visible row alone is not ready to receive a click on a cold CI browser.
+  await popup.waitForLoadState('load');
+  const closed = popup.waitForEvent('close');
   await popup.getByText(email, { exact: true }).last().click();
+  await closed;
 }
 
 test('owner signs in, saves to Firestore, reloads, and signs out on a Pages subpath', async ({

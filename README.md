@@ -2,7 +2,7 @@
 
 A personal investing workspace for a beginner in Denmark. Built with React, TypeScript, Vite, Recharts, Firebase Authentication, Firestore, and Firebase Functions. It is designed for personal money after tax.
 
-**The complete local app works without credentials.** The Firebase backend, GitHub Pages workflow, and connection helpers are implemented. Live account setup and publication still require your Firebase project, owner account, market-data key, and GitHub repository. No financial account is connected and the application cannot execute trades.
+**The complete local app works without credentials.** The Firebase backend, GitHub Pages workflow, and connection helpers are implemented. Source is published at [jacobsbogh/EazyInvest](https://github.com/jacobsbogh/EazyInvest). Live account setup and website publication still require your Firebase project, owner account, and market-data key. No financial account is connected and the application cannot execute trades.
 
 ## Run locally
 

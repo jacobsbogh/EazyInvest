@@ -1,12 +1,12 @@
 # Connect and publish EazyInvest
 
-The code is implemented; this runbook describes the external account setup. Git has been initialized locally. No remote, live Firebase project, provider key, or deployed site has been configured during implementation.
+The code is implemented and pushed to [jacobsbogh/EazyInvest](https://github.com/jacobsbogh/EazyInvest). This is currently a public source repository. No live Firebase project, provider key, or deployed website has been configured during implementation.
 
 ## 1. Choose the targets
 
 - Firebase project ID and registered Firebase **web app** ID.
 - The Google account that should own this personal workspace.
-- GitHub repository, normally a private `EazyInvest` repository under your account.
+- GitHub repository: `jacobsbogh/EazyInvest`. Review its source visibility separately from Firebase owner-only data access.
 - A Twelve Data account with coverage for the desired catalog symbols. Do not purchase a plan or enable scheduled fetching until coverage and cost are confirmed.
 
 GitHub Pages needs an eligible GitHub plan to publish from a private source repository. The site’s JavaScript and sign-in page remain public; Firestore rules and callable checks protect your financial records. Do not put financial records or private API credentials in source files, repository variables, or the frontend.
@@ -25,7 +25,7 @@ npm run check:deploy
 
 The configuration helper verifies the returned project/app, validates the four public values, and creates ignored `.env.local`. It will not overwrite an existing file. For a user site or custom-domain root, use `--base /`. It does not enable services, deploy, write an allowlist, or alter cloud data. Restart the development server after changing configuration.
 
-In the Firebase console, enable Firestore in a suitable European region and Google sign-in under Authentication. Add `localhost` and the GitHub Pages hostname, such as `rg11ujacob.github.io`, to authorized domains. The hostname has no scheme or repository path. The deployed Functions region is `europe-west1`.
+In the Firebase console, enable Firestore in a suitable European region and Google sign-in under Authentication. Add `localhost` and the GitHub Pages hostname, `jacobsbogh.github.io`, to authorized domains. The hostname has no scheme or repository path. The deployed Functions region is `europe-west1`.
 
 ## 3. Configure owner access and provider credentials
 
@@ -52,7 +52,7 @@ Scheduled data refresh is disabled by default. To enable it later, copy `functio
 
 ## 4. Configure GitHub Pages
 
-Create/select the private repository and push the reviewed source. In repository Settings → Pages, select **GitHub Actions**. Add these Actions repository **variables**, using the public values in `.env.local`:
+The source repository is already connected. In repository Settings → Pages, select **GitHub Actions**. Add these Actions repository **variables**, using the public values in `.env.local`:
 
 | Variable                    | Firebase web configuration |
 | --------------------------- | -------------------------- |

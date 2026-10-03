@@ -1,0 +1,53 @@
+{
+  "name": "eazyinvest",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "functions"
+  ],
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "build:pages": "node scripts/build-pages.mjs",
+    "check:deploy": "node scripts/check-deploy-config.mjs",
+    "verify:backend": "node scripts/verify-backend.mjs",
+    "firebase": "node scripts/firebase-cli.mjs",
+    "configure:firebase": "node scripts/configure-firebase.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:rules": "node scripts/test-backend.mjs --rules",
+    "test:backend": "npm run build:functions && node scripts/test-backend.mjs",
+    "test:cloud": "npm run build:functions && node scripts/test-backend.mjs --browser",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build:functions": "npm run build --workspace functions",
+    "check": "npm run build && npm run build:functions && npm test"
+  },
+  "dependencies": {
+    "firebase": "^12.0.0",
+    "lucide-react": "^0.468.0",
+    "papaparse": "^5.5.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.0.0",
+    "recharts": "^3.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^22.0.0",
+    "@types/papaparse": "^5.3.16",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "firebase-tools": "^15.32.0",
+    "prettier": "^3.9.9",
+    "typescript": "~5.9.0",
+    "vite": "^7.0.0",
+    "vitest": "^5.0.2"
+  }
+}

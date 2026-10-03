@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/config/access)
+        && get(/databases/$(database)/documents/config/access).data.ownerUid == request.auth.uid;
+    }
+    // All mutations pass through callable functions for validation and revision checks.
+    match /users/{uid}/workspace/current {
+      allow get: if owner() && request.auth.uid == uid;
+      allow list, write: if false;
+    }
+    match /market/{instrumentId} {
+      allow get: if owner();
+      allow list, write: if false;
+    }
+    // In particular, the client cannot change the owner or provider quota counters.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

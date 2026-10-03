@@ -1,5 +1,6 @@
 import type { Plan, Transaction, InstrumentId, MarketSeries } from './schema.js';
 import { equityTax, tax2026 } from './tax.js';
+import { latestQuote } from './market.js';
 
 export type ProjectionPoint = {
   year: number;
@@ -126,8 +127,9 @@ export function portfolio(
     const quote = market[p.id];
     if (p.units < 1e-8) p.value = 0;
     else if (quote) {
-      p.value = p.units * quote.points.at(-1)!.close * quote.fxToDkk;
-      p.quoteDate = quote.points.at(-1)!.date;
+      const current = latestQuote(quote)!;
+      p.value = p.units * current.close * quote.fxToDkk;
+      p.quoteDate = current.date;
     }
   }
   const rows = [...positions.values()];

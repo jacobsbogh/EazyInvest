@@ -14,7 +14,7 @@ Published on 2026-10-04 at [EazyInvest](https://jacobsbogh.github.io/EazyInvest/
 - The actual HTTPS site passes desktop/mobile password-form, accessibility, and all seven demo-screen checks, with no browser errors.
 - The owner's direct sign-in/save/reload/sign-out check on the published site remains pending. Enter the password only on the site; automated checks do not use it.
 
-Live market data and recurring development automation are inactive. The setup instructions below also serve as the runbook for future recovery or publication.
+The free historical-data follow-up is documented in [the market-data runbook](MARKET_DATA.md). Recurring development automation remains inactive. The setup instructions below also serve as the runbook for recovery or publication.
 
 ## Firebase and owner access
 
@@ -58,18 +58,18 @@ Run [Publish EazyInvest](https://github.com/jacobsbogh/EazyInvest/actions/workfl
 
 The sign-in page, bundle and source are public. Firebase records are private. A push runs CI; Pages publication is manual.
 
-## Optional live prices
+## Free historical data and current prices
 
-This is deferred. The workflow is an inactive template at `docs/market-data.yml.example`; it runs only after being moved to `.github/workflows/market-data.yml` during a later setup step.
+The workflow is `.github/workflows/market-data.yml`. Follow [the market-data runbook](MARKET_DATA.md) for the free-only source, exact-listing validation, historical backfill and limitations.
 
 1. Keep Email/Password enabled in Authentication.
 2. Create a dedicated Authentication user for the market job with a strong unique password. It need not receive email. **Do not use the owner account.**
 3. Add that UID as the string field `marketWriterUid` in `config/access`, preserving `ownerUid`.
-4. Add these [Actions secrets](https://github.com/jacobsbogh/EazyInvest/settings/secrets/actions): `MARKET_SYNC_EMAIL`, `MARKET_SYNC_PASSWORD`, `TWELVE_DATA_API_KEY`. Enter secrets through GitHub's form, not chat, command arguments, or repository files. No admin/service-account key is needed.
-5. Run **Refresh market data** manually. Verify Twelve Data coverage for each catalog listing; the free provider plan is not guaranteed to cover them all. Unsupported prices remain missing or retain their previous data.
-6. Set the Actions variable `MARKET_SYNC_ENABLED=true` to enable weekday updates at 21:37 UTC (22:37 Danish winter time / 23:37 summer time). GitHub can delay runs and disable public-repository schedules after 60 inactive days.
+4. Add these [Actions secrets](https://github.com/jacobsbogh/EazyInvest/settings/secrets/actions): `MARKET_SYNC_EMAIL`, `MARKET_SYNC_PASSWORD`, `ALPHA_VANTAGE_API_KEY`. Enter secrets through GitHub's form, not chat, command arguments, or repository files. No admin/service-account key is needed.
+5. Deploy the Firestore rules and run **Refresh market data** manually. Verify supported exact listings, historical ranges, price dates and FX dates. Unsupported prices remain missing or retain their previous data.
+6. Set the Actions variable `MARKET_SYNC_ENABLED=true` to enable Tuesday–Saturday updates at 05:37 UTC (06:37 Danish winter time / 07:37 summer time), after the previous weekday's close. GitHub can delay runs and disable public-repository schedules after 60 inactive days.
 
-The job can only read/write catalog prices, never personal records. It checks all six instruments, reuses caches younger than 24 hours, and makes at most 12 requests/run with eight-second spacing. Manual reruns can consume further credits. Provider data stays in Firestore, never the public repository. The app's refresh button reads that cache.
+The job can only read/write catalog prices, never personal records. It checks all six instruments, reuses caches younger than 20 hours, and makes at most 18 provider requests/run with thirteen-second spacing. Manual reruns share the free daily allowance. Provider data stays in Firestore, never the public repository. The app's refresh button reads that cache.
 
 ## Release checks and references
 

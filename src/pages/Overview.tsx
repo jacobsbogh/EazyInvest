@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, ArrowRight, Plus, Leaf, BookOpen, Target, RefreshCw } from 'lucide-react';
 import { useApp } from '../lib/store';
+import { latestQuote } from '../../shared/market';
 import { PageHeading, Stat, Empty } from '../components/ui';
 import { ProjectionChart } from '../components/charts';
 import { portfolio, scenarios } from '../../shared/finance';
@@ -176,8 +177,15 @@ export default function Overview() {
             {data.watchlist.map((w) => {
               const item = getInstrument(w.instrumentId);
               const series = market[item.id];
-              const first = series?.points[0].close;
-              const last = series?.points.at(-1)?.close;
+              const first = series?.points[0];
+              const historyLast = series?.points.at(-1);
+              const last = latestQuote(series);
+              const change =
+                first && historyLast
+                  ? series?.adjustment
+                    ? historyLast.adjustedClose! / first.adjustedClose! - 1
+                    : historyLast.close / first.close - 1
+                  : undefined;
               return (
                 <Link to={`/explore?investment=${item.id}`} className="watch-item" key={item.id}>
                   <span className="instrument-mark" style={{ background: item.color }}>
@@ -190,10 +198,10 @@ export default function Overview() {
                     </span>
                   </div>
                   <div className="watch-price">
-                    <strong>{last ? `${number(last)} ${item.currency}` : 'No data'}</strong>
+                    <strong>{last ? `${number(last.close)} ${item.currency}` : 'No data'}</strong>
                     <span>
-                      {first && last
-                        ? `${percent(last / first - 1)} · ${mode === 'demo' ? 'sample' : 'period'}`
+                      {change !== undefined
+                        ? `${percent(change)} · ${mode === 'demo' ? 'sample' : series?.adjustment ? 'adjusted history' : 'period'}`
                         : 'Connect data'}{' '}
                       <ArrowUpRight size={12} />
                     </span>

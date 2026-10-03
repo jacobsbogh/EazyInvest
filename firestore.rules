@@ -52,10 +52,23 @@ service cloud.firestore {
       allow create, update: if marketWriter()
         && instrumentId in ['vwce','eunl','is3n','sxr8','novo','msft']
         && request.resource.data.keys().hasAll(['instrumentId','currency','source','fetchedAt','fxToDkk','fxDate','points'])
-        && request.resource.data.keys().hasOnly(['instrumentId','currency','source','fetchedAt','fxToDkk','fxDate','points'])
+        && request.resource.data.keys().hasOnly(['instrumentId','currency','source','fetchedAt','fxToDkk','fxDate','points','frequency','adjustment','providerSymbol','quote','fxSource'])
         && request.resource.data.instrumentId == instrumentId
-        && request.resource.data.source == 'Twelve Data'
-        && request.resource.data.currency in ['EUR','USD','DKK']
+        && request.resource.data.source in ['Twelve Data','Alpha Vantage']
+        && request.resource.data.currency == {'vwce':'EUR','eunl':'EUR','is3n':'EUR','sxr8':'EUR','novo':'DKK','msft':'USD'}[instrumentId]
+        && (request.resource.data.source == 'Twelve Data' || (
+          request.resource.data.keys().hasAll(['frequency','adjustment','providerSymbol','quote','fxSource'])
+          && request.resource.data.frequency == 'monthly'
+          && request.resource.data.adjustment == 'splits-and-dividends'
+          && request.resource.data.fxSource == 'ECB'
+          && request.resource.data.providerSymbol == {'vwce':'VWCE.DEX','eunl':'EUNL.DEX','is3n':'IS3N.DEX','sxr8':'SXR8.DEX','novo':'NOVO-B.CPH','msft':'MSFT'}[instrumentId]
+          && request.resource.data.quote is map
+          && request.resource.data.quote.keys().hasAll(['date','close'])
+          && request.resource.data.quote.keys().hasOnly(['date','close'])
+          && request.resource.data.quote.date is string
+          && bounded(request.resource.data.quote.close, 0.000001, 10000000)
+          && request.resource.data.points.size() <= 1200
+        ))
         && request.resource.data.fetchedAt is string && request.resource.data.fxDate is string
         && bounded(request.resource.data.fxToDkk, 0.000001, 100000)
         && request.resource.data.points is list

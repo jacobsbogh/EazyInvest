@@ -34,7 +34,7 @@ Transactions use an immutable ID, valid date, instrument ID, type, positive unit
 - Buy: increase units and average-cost basis by `units × unitPrice × historicalFX + fees`.
 - Sell: remove the proportionate average cost, decrease units, and recognize the difference between proceeds net of fees and removed basis.
 - Dividend: record `units × amountPerUnit × historicalFX − fees` as proceeds without changing units or basis.
-- Value: remaining units × latest available close × latest available FX. Quote and FX observations can be from different dates.
+- Value: remaining units × latest available unadjusted quote × latest available FX. Alpha Vantage's current quote is stored separately from its monthly history. Quote and FX observations can be from different dates. ECB reference FX is an indicative conversion, not a broker execution rate.
 - Net invested: purchases plus fees minus sale proceeds net of fees minus recorded dividends net of fees.
 - Total gain: current investment value minus net invested. This includes both realized and unrealized results, before tax. It is not time-weighted or money-weighted performance.
 
@@ -42,4 +42,8 @@ If any held position lacks a market quote, aggregate value and profit are unavai
 
 ## Historical comparisons
 
-Single-instrument charts show prices in trading currency. Multi-instrument comparisons use only dates common to all loaded selected series, normalize their first common price to 100, and retain trading-currency effects. Missing selected series are explicitly disclosed and excluded. Drawdown is the largest observed peak-to-trough decline in the selected instrument’s window. Sparse sample data understates intra-period variation; the demo discloses that its series is generated.
+Single-instrument charts show historical closes in trading currency. Alpha Vantage monthly observations retain both raw close and provider adjusted close. When all loaded selections have the split/dividend adjustment metadata, charts, period returns and drawdowns use adjusted closes. The latest unadjusted quote is used for the price table and holdings valuation, never as an extra adjusted history point. Legacy unadjusted data and demo data remain price comparisons. Personal tax, dealing costs and historical DKK FX are excluded from comparisons.
+
+Multi-instrument comparisons normalize the first common observation to 100. Monthly series align by calendar month because exchanges can have different final trading days; daily/legacy series align by exact date. Only overlapping observations are charted. No interpolation, pre-launch backfill, alternate listing or benchmark splice is performed. Metrics for the primary selection use its observations within the displayed common period; no overlap produces an empty chart and unavailable metrics. Missing selected series are disclosed and excluded.
+
+The default window is 20 years ending at the latest common observation, with 1/3/5/10/20-year and full available-history choices. The displayed start/end and count describe the actual data, which can be shorter than the selected window. Drawdown is the largest observed peak-to-trough decline in that window. Monthly sampling can understate losses between observations, and provider adjustments can be revised. The demo remains clearly labelled generated data.

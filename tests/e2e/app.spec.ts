@@ -46,6 +46,17 @@ test('planner saves, reloads, and changes the crash scenario', async ({ page }) 
 test('watchlist, notes, filters and comparisons work', async ({ page }) => {
   await enter(page);
   await navigate(page, '/explore');
+  await expect(page.getByRole('button', { name: '20Y', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('button', { name: 'All', exact: true }).click();
+  await expect(page.getByText(/Available history starts/)).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+    ),
+  ).toBe(true);
   await page.getByRole('button', { name: 'Add MSFT to watchlist' }).click();
   await page.getByRole('button', { name: 'View Microsoft', exact: true }).click();
   await page

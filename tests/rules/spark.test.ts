@@ -106,6 +106,28 @@ describe('Spark owner and market-writer boundaries', () => {
       await assertFails(setDoc(doc(db, 'config/access'), { ownerUid: uid, marketWriterUid: uid }));
     }
   });
+  it('accepts verified monthly history only with the exact listing, currency and separate quote', async () => {
+    const db = env.authenticatedContext('writer').firestore();
+    const monthly = {
+      ...market(),
+      source: 'Alpha Vantage',
+      frequency: 'monthly',
+      adjustment: 'splits-and-dividends',
+      providerSymbol: 'VWCE.DEX',
+      fxSource: 'ECB',
+      quote: { date: '2026-10-02', close: 100 },
+    };
+    await assertSucceeds(setDoc(doc(db, 'market/vwce'), monthly));
+    for (const change of [
+      { providerSymbol: 'VWCE.GER' },
+      { currency: 'USD' },
+      { frequency: 'daily' },
+      { quote: { date: '2026-10-02', close: -1 } },
+    ])
+      await assertFails(setDoc(doc(db, 'market/vwce'), { ...monthly, ...change }));
+    const { quote: _quote, ...withoutQuote } = monthly;
+    await assertFails(setDoc(doc(db, 'market/vwce'), withoutQuote));
+  });
   it('fails closed when the administrative allowlist is absent', async () => {
     await env.withSecurityRulesDisabled((c) => deleteDoc(doc(c.firestore(), 'config/access')));
     for (const uid of ['owner', 'writer']) {

@@ -109,19 +109,23 @@ export function PriceChart({
   data,
   keys,
   currency = false,
+  adjusted = false,
 }: {
   data: Record<string, number | string>[];
   keys: { id: string; name: string; color: string }[];
   currency?: boolean;
+  adjusted?: boolean;
 }) {
   return (
     <div
       className="chart price-chart"
       role="img"
       aria-label={
-        currency
-          ? 'Price history chart in the trading currency'
-          : 'Price comparison indexed to 100 at the first common date'
+        adjusted
+          ? 'Adjusted historical returns accounting for splits and dividends'
+          : currency
+            ? 'Price history chart in the trading currency'
+            : 'Price comparison indexed to 100 at the first common date'
       }
     >
       <ResponsiveContainer width="100%" height="100%">

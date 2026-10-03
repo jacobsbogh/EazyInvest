@@ -56,18 +56,46 @@ export const storedSchema = z.object({
   revision: z.number().int().nonnegative(),
   data: workspaceSchema,
 });
-export const marketSchema = z.object({
-  instrumentId: instrumentIdSchema,
-  currency: z.enum(['EUR', 'USD', 'DKK']),
-  source: z.enum(['demo', 'Twelve Data']),
-  fetchedAt: z.string().datetime(),
-  fxToDkk: z.number().finite().positive(),
-  fxDate: dateSchema,
-  points: z
-    .array(z.object({ date: dateSchema, close: z.number().finite().positive() }))
-    .min(1)
-    .max(6000),
+const marketPointSchema = z.object({
+  date: dateSchema,
+  close: z.number().finite().positive(),
+  adjustedClose: z.number().finite().positive().optional(),
 });
+export const marketSchema = z
+  .object({
+    instrumentId: instrumentIdSchema,
+    currency: z.enum(['EUR', 'USD', 'DKK']),
+    source: z.enum(['demo', 'Twelve Data', 'Alpha Vantage']),
+    fetchedAt: z.string().datetime(),
+    fxToDkk: z.number().finite().positive(),
+    fxDate: dateSchema,
+    points: z.array(marketPointSchema).min(1).max(6000),
+    frequency: z.literal('monthly').optional(),
+    adjustment: z.literal('splits-and-dividends').optional(),
+    providerSymbol: z.string().min(1).max(40).optional(),
+    quote: z.object({ date: dateSchema, close: z.number().finite().positive() }).optional(),
+    fxSource: z.literal('ECB').optional(),
+  })
+  .superRefine((series, context) => {
+    if (series.points.some((point, i) => i > 0 && point.date <= series.points[i - 1].date))
+      context.addIssue({ code: 'custom', message: 'Market dates must be unique and ascending.' });
+    if (
+      series.source === 'Alpha Vantage' &&
+      (!series.providerSymbol ||
+        series.frequency !== 'monthly' ||
+        series.adjustment !== 'splits-and-dividends' ||
+        series.fxSource !== 'ECB' ||
+        !series.quote ||
+        series.points.some((point) => point.adjustedClose === undefined) ||
+        new Set(series.points.map((point) => point.date.slice(0, 7))).size !==
+          series.points.length ||
+        (series.quote && series.quote.date < series.points.at(-1)!.date))
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'Adjusted monthly data requires provenance and a separate current quote.',
+      });
+  });
 export type Plan = z.infer<typeof planSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
 export type Workspace = z.infer<typeof workspaceSchema>;

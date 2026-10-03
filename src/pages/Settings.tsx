@@ -9,6 +9,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { useApp, friendlyError } from '../lib/store';
+import { latestQuote } from '../../shared/market';
 import { firebaseConfigured } from '../lib/firebase';
 import { emptyWorkspace, demoWorkspace } from '../lib/demo';
 import { parseWorkspace } from '../../shared/schema';
@@ -200,7 +201,7 @@ export default function Settings() {
                   <li key={s!.instrumentId}>
                     <strong>{s!.instrumentId.toUpperCase()}</strong>
                     <span>
-                      {date(s!.points.at(-1)!.date)}
+                      {date(latestQuote(s)!.date)}
                       <small>{s!.source === 'demo' ? 'Generated example' : s!.source}</small>
                     </span>
                   </li>

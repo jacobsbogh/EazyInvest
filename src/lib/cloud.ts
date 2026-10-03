@@ -1,6 +1,7 @@
 import { doc, getDocFromServer, runTransaction, type Firestore } from 'firebase/firestore';
 import { marketSchema, parseWorkspace, storedSchema } from '../../shared/schema';
 import type { InstrumentId, Workspace } from '../../shared/schema';
+import { getInstrument } from '../../shared/catalog';
 
 export async function loadWorkspace(db: Firestore, uid: string) {
   const snapshot = await getDocFromServer(doc(db, 'users', uid, 'workspace', 'current'));
@@ -30,7 +31,11 @@ export async function loadMarket(db: Firestore, id: InstrumentId) {
   const snapshot = await getDocFromServer(doc(db, 'market', id));
   if (!snapshot.exists()) return null;
   const series = marketSchema.parse(snapshot.data());
-  if (series.instrumentId !== id || series.source !== 'Twelve Data')
+  if (
+    series.instrumentId !== id ||
+    series.source === 'demo' ||
+    series.currency !== getInstrument(id).currency
+  )
     throw new Error('The market cache does not contain verified provider data.');
   return series;
 }

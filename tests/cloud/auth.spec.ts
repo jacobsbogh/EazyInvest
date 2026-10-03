@@ -25,6 +25,27 @@ test.beforeAll(async () => {
   }
   await getFirestore(admin).doc('config/access').set({ ownerUid });
   await getFirestore(admin).doc(`users/${ownerUid}/workspace/current`).delete();
+  await getFirestore(admin)
+    .doc('market/msft')
+    .set({
+      instrumentId: 'msft',
+      currency: 'USD',
+      source: 'Alpha Vantage',
+      providerSymbol: 'MSFT',
+      frequency: 'monthly',
+      adjustment: 'splits-and-dividends',
+      fetchedAt: '2026-10-04T10:00:00.000Z',
+      fxToDkk: 6,
+      fxDate: '2026-10-02',
+      fxSource: 'ECB',
+      quote: { date: '2026-10-02', close: 260 },
+      points: [
+        { date: '2006-09-29', close: 100, adjustedClose: 25 },
+        { date: '2008-09-30', close: 100, adjustedClose: 20 },
+        { date: '2025-09-30', close: 200, adjustedClose: 40 },
+        { date: '2026-09-30', close: 250, adjustedClose: 50 },
+      ],
+    });
 });
 test.afterAll(async () => {
   await deleteApp(admin);
@@ -109,4 +130,36 @@ test('password sign-in is accessible and fits desktop and mobile screens', async
       fullPage: true,
     });
   }
+});
+
+test('private historical analysis distinguishes adjusted returns from the current quote', async ({
+  page,
+}) => {
+  await signIn(page, ownerEmail);
+  await expect(page.getByRole('heading', { name: 'Your future starts here.' })).toBeVisible();
+  await page.goto('./#/explore?investment=msft');
+  await expect(page.getByText('Adjusted monthly history in USD')).toBeVisible();
+  await expect(page.getByRole('button', { name: '20Y', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.locator('.detail-metrics').nth(0)).toContainText('260');
+  await expect(page.getByText(/Showing .*2006.*2026/)).toBeVisible();
+  await expect(page.getByText('Period adjusted return').locator('..')).toContainText('100');
+  await page.getByRole('button', { name: '1Y', exact: true }).click();
+  await expect(page.getByText('Period adjusted return').locator('..')).toContainText('25');
+  await expect(page.locator('.source-line')).toContainText('ECB');
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+    ),
+  ).toBe(true);
+  const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(
+    audit.violations.map((violation) => ({
+      id: violation.id,
+      nodes: violation.nodes.map((node) => ({ target: node.target, summary: node.failureSummary })),
+    })),
+  ).toEqual([]);
 });

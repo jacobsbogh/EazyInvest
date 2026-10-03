@@ -18,7 +18,7 @@
   --green-dark: #223e30;
   --lime: #d6ecaa;
   --ink: #29362e;
-  --muted: #7a8177;
+  --muted: #626b5d;
   --line: #e7eae1;
   --paper: #fff;
   --radius: 17px;
@@ -1290,6 +1290,9 @@ th:last-child {
   border-radius: 7px;
   padding: 3px;
   flex-shrink: 0;
+}
+.explore-detail-grid > .card > .section-heading {
+  flex-wrap: wrap;
 }
 .segmented button {
   border: 0;

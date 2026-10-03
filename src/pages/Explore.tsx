@@ -5,6 +5,7 @@ import { useApp } from '../lib/store';
 import { instruments, getInstrument } from '../../shared/catalog';
 import type { InstrumentId } from '../../shared/schema';
 import { maxDrawdown } from '../../shared/finance';
+import { historicalComparison, latestQuote } from '../../shared/market';
 import { PageHeading, Empty, Note, Field } from '../components/ui';
 import { PriceChart } from '../components/charts';
 import { date, number, percent } from '../lib/format';
@@ -19,7 +20,7 @@ export default function Explore() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All investments');
   const [compare, setCompare] = useState<InstrumentId[]>([]);
-  const [years, setYears] = useState(5);
+  const [years, setYears] = useState<number | 'all'>(20);
   const item = getInstrument(selected);
   const series = market[selected];
   const watch = data.watchlist.find((w) => w.instrumentId === selected);
@@ -33,30 +34,15 @@ export default function Explore() {
         (filter === 'Watchlist' && data.watchlist.some((w) => w.instrumentId === i.id))),
   );
   const selectedIds = [selected, ...compare.filter((id) => id !== selected)].slice(0, 3);
-  const available = selectedIds.filter((id) => market[id]);
-  const timestamps = new Map(
-    available.map((id) => [id, new Map(market[id]!.points.map((p) => [p.date, p.close]))]),
-  );
-  const allDates =
-    market[available[0]]?.points
-      .map((p) => p.date)
-      .filter((day) => available.every((id) => timestamps.get(id)!.has(day))) ?? [];
-  const endDate = allDates.at(-1);
-  const startDate = endDate ? new Date(endDate) : new Date();
-  startDate.setUTCFullYear(startDate.getUTCFullYear() - years);
-  const dates = allDates.filter((day) => day >= startDate.toISOString().slice(0, 10));
-  const chartData = dates.map((day) =>
-    Object.fromEntries([
-      ['date', day],
-      ...available.map((id) => [
-        id,
-        timestamps.get(id)!.get(day)! /
-          (available.length > 1 ? timestamps.get(id)!.get(dates[0])! / 100 : 1),
-      ]),
-    ]),
-  );
-  const points = series?.points.filter((p) => p.date >= startDate.toISOString().slice(0, 10)) ?? [];
-  const last = series?.points.at(-1);
+  const {
+    available,
+    monthly,
+    adjusted,
+    data: chartData,
+    points,
+  } = historicalComparison(market, selectedIds, years);
+  const last = latestQuote(series);
+  const historyLast = points.at(-1);
   const first = points[0];
   async function toggleWatch(id: InstrumentId) {
     const exists = data.watchlist.some((w) => w.instrumentId === id);
@@ -131,7 +117,7 @@ export default function Explore() {
               </thead>
               <tbody>
                 {rows.map((i) => {
-                  const price = market[i.id]?.points.at(-1);
+                  const price = latestQuote(market[i.id]);
                   const saved = data.watchlist.some((w) => w.instrumentId === i.id);
                   return (
                     <tr key={i.id} className={selected === i.id ? 'selected-row' : ''}>
@@ -192,19 +178,19 @@ export default function Explore() {
               <h2>{item.shortName}</h2>
               <p>
                 {available.length > 1
-                  ? 'Price change indexed to 100 · common dates only'
-                  : `Price history in ${item.currency}`}
+                  ? `${adjusted ? 'Adjusted return' : 'Price change'} indexed to 100 · common ${monthly ? 'months' : 'dates'} only`
+                  : `${adjusted ? 'Adjusted monthly history' : 'Price history'} in ${item.currency}`}
               </p>
             </div>
             <div className="segmented" aria-label="Chart time range">
-              {[1, 3, 5].map((y) => (
+              {([1, 3, 5, 10, 20, 'all'] as const).map((y) => (
                 <button
                   key={y}
                   className={years === y ? 'active' : ''}
                   onClick={() => setYears(y)}
                   aria-pressed={years === y}
                 >
-                  {y}Y
+                  {y === 'all' ? 'All' : `${y}Y`}
                 </button>
               ))}
             </div>
@@ -219,23 +205,41 @@ export default function Explore() {
                   </strong>
                 </div>
                 <div>
-                  <span>Period price change</span>
-                  <strong>{first && last ? percent(last.close / first.close - 1) : '—'}</strong>
+                  <span>{adjusted ? 'Period adjusted return' : 'Period price change'}</span>
+                  <strong>
+                    {first && historyLast ? percent(historyLast.close / first.close - 1) : '—'}
+                  </strong>
                 </div>
                 <div>
                   <span>Largest observed fall</span>
-                  <strong className="loss">{percent(maxDrawdown(points))}</strong>
+                  <strong className="loss">
+                    {points.length > 1 ? percent(maxDrawdown(points)) : '—'}
+                  </strong>
                 </div>
               </div>
-              <PriceChart
-                data={chartData}
-                keys={available.map((id) => ({
-                  id,
-                  name: getInstrument(id).ticker,
-                  color: getInstrument(id).color,
-                }))}
-                currency={available.length === 1}
-              />
+              {chartData.length ? (
+                <PriceChart
+                  data={chartData}
+                  keys={available.map((id) => ({
+                    id,
+                    name: getInstrument(id).ticker,
+                    color: getInstrument(id).color,
+                  }))}
+                  currency={available.length === 1}
+                  adjusted={adjusted}
+                />
+              ) : (
+                <Empty title="No overlapping history">
+                  Choose investments with overlapping observations to compare them.
+                </Empty>
+              )}
+              {first && historyLast && (
+                <p className="muted text-small">
+                  Showing {date(first.date)}–{date(historyLast.date)} · {points.length}{' '}
+                  {monthly ? 'monthly' : 'price'} observations. Available history starts{' '}
+                  {date(series.points[0].date)}. Younger funds and listings have shorter histories.
+                </p>
+              )}
             </>
           ) : (
             <Empty
@@ -250,8 +254,8 @@ export default function Explore() {
                 </button>
               }
             >
-              Connect Firebase and the market-data provider, then load this investment. Missing data
-              is never replaced with sample prices.
+              This listing has no saved provider data yet. The free source may not cover every
+              exchange. Missing data is never replaced with sample prices.
             </Empty>
           )}
           <div className="compare-options">
@@ -284,14 +288,18 @@ export default function Explore() {
           <Note>
             {mode === 'demo'
               ? 'All prices, performance, FX rates, and drawdowns shown here are generated examples, not market history.'
-              : 'Provider price history excludes dividends and is not total return. Provider adjustments and available history may differ by exchange.'}{' '}
+              : adjusted
+                ? 'Historical returns use provider adjusted closes, accounting for splits and dividends. Latest prices used for holdings are separate, unadjusted quotes. Returns are before personal taxes and trading costs.'
+                : 'Provider price history excludes dividends and is not total return. Provider adjustments and available history may differ by exchange.'}{' '}
             Comparisons use trading currencies, so they do not show your DKK return. Drawdown is
             measured only at the available observations.
           </Note>
           {series && (
             <div className="source-line">
               Source: {series.source === 'demo' ? 'Generated demonstration' : series.source} ·
-              Retrieved {date(series.fetchedAt)} · FX observation {date(series.fxDate)}
+              {series.providerSymbol && <>{series.providerSymbol} · </>}
+              Retrieved {date(series.fetchedAt)} · Quote {date(last!.date)} ·{' '}
+              {series.fxSource ?? 'Provider'} FX {date(series.fxDate)}
             </div>
           )}
         </section>

@@ -3,13 +3,15 @@
 ## Release follow-up (owner-led)
 
 1. Confirm the owner's direct sign-in/save/reload/sign-out check on the [published first release](https://jacobsbogh.github.io/EazyInvest/). Dedicated email/password sign-in, Belgium Firestore on Spark, owner UID configuration, rules and Pages publication are complete. Automated emulator tests cover owner persistence and unrelated-account denial; see [release status](DEPLOYMENT.md). Do not upgrade billing.
-2. After that release, select the market provider plan and validate the six exact exchange listings, history coverage, FX availability, request limits, and personal-use licensing. The workflow template is inactive.
+2. Connect and verify free historical data using [the market-data runbook](MARKET_DATA.md). Alpha Vantage monthly adjusted history, separate current quotes, ECB FX, a restricted writer and 20-year/full-history views are implemented. Report actual supported listings and date ranges after the first import. Research another free source for any unsupported listing; do not substitute a different venue, share class or ADR.
 3. Keep GitHub Pages build variables and the authorized hostname in Firebase Auth current. Repository and CI are connected; publication is manual and subpath browser tests are implemented.
 4. Configure the desired scheduled development workflow, model, run budget, and review process. There is no existing schedule to modify.
 
 ## Highest-value product improvements
 
-- Introduce a verified total-return dataset including dividends and consistent split/corporate-action adjustment. Until then, keep “price return” labels.
+- Extend historical analysis with annualized returns and rolling holding-period results, with independently calculated test fixtures. Do not infer future probabilities from past results.
+- Add historical DKK returns using dated FX observations; current reference FX is used only for present holdings valuation.
+- Research separately labelled market benchmarks for periods predating the catalog ETFs. Never extend a fund's history with another investment's data.
 - Add a year-versioned importer for the official SKAT equity-investment-company list with exact ISIN matching, provenance, a review step, and a status for missing/unverified data. Membership is not a recommendation.
 - Add transaction editing with the same complete-ledger validation as import and deletion, plus an audit trail.
 - Add dated portfolio snapshots and clearly distinguish deposits/withdrawals from performance. Define the cash-account model before implementing time-weighted or money-weighted returns.

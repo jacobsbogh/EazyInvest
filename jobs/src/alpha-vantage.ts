@@ -42,8 +42,15 @@ export function validateListing(input: unknown, instrument: Instrument) {
   const listing = response.bestMatches.find((match) => match['1. symbol'] === candidate.symbol);
   if (!listing) throw new ProviderError('coverage');
   const name = listing['2. name'].toUpperCase();
+  // Search labels German venues as XETRA/Frankfurt rather than consistently
+  // using country names. The documented .DEX suffix must still match exactly.
+  const region = listing['4. region'].replace(/[^A-Za-z]/gu, '').toUpperCase();
+  const regions =
+    candidate.region === 'Germany'
+      ? ['GERMANY', 'XETRA', 'GERMANYXETRA']
+      : [candidate.region.replace(/[^A-Za-z]/gu, '').toUpperCase()];
   if (
-    listing['4. region'] !== candidate.region ||
+    !regions.includes(region) ||
     listing['8. currency'] !== instrument.currency ||
     listing['3. type'] !== (instrument.kind === 'ETF' ? 'ETF' : 'Equity') ||
     !candidate.words.every((word) => name.includes(word))

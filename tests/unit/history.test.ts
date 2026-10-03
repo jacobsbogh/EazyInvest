@@ -77,6 +77,26 @@ describe('free historical provider', () => {
       ).toThrow('invalid');
     expect(() => validateListing({ bestMatches: [] }, getInstrument('vwce'))).toThrow('coverage');
   });
+  it('accepts Xetra region labels only for the exact EUR ETF listing', () => {
+    const etf = {
+      '1. symbol': 'EUNL.DEX',
+      '2. name': 'iShares Core MSCI World UCITS ETF',
+      '3. type': 'ETF',
+      '4. region': 'XETRA',
+      '8. currency': 'EUR',
+    };
+    expect(validateListing({ bestMatches: [etf] }, getInstrument('eunl'))).toBe('EUNL.DEX');
+    for (const change of [{ '4. region': 'Frankfurt' }, { '8. currency': 'USD' }])
+      expect(() =>
+        validateListing({ bestMatches: [{ ...etf, ...change }] }, getInstrument('eunl')),
+      ).toThrow('invalid');
+    expect(() =>
+      validateListing(
+        { bestMatches: [{ ...etf, '1. symbol': 'EUNL.FRK' }] },
+        getInstrument('eunl'),
+      ),
+    ).toThrow('coverage');
+  });
   it('retains the available historical backfill, with separate raw and adjusted closes', () => {
     expect(parseMonthlyHistory(history, 'MSFT')).toEqual([
       { date: '2006-09-29', close: 100, adjustedClose: 25 },

@@ -109,6 +109,32 @@ service cloud.firestore {
         && (!('reportedTrade' in request.resource.data) || validReportedTrade(request.resource.data.reportedTrade, instrumentId));
       allow list, delete: if false;
     }
+    match /marketQuotes/{instrumentId} {
+      allow get: if owner() || marketWriter();
+      allow list: if (owner() || marketWriter()) && request.query.limit != null && request.query.limit <= 100;
+      allow create, update: if marketWriter() && validQuote(request.resource.data, instrumentId);
+      allow delete: if false;
+    }
+    function validQuote(v, id) {
+      return v.keys().hasAll(['instrumentId','currency','source','fetchedAt','quote','fxToDkk','fxDate'])
+        && v.keys().hasOnly(['instrumentId','currency','source','providerSymbol','fetchedAt','quote','fxToDkk','fxDate','fxSource'])
+        && v.instrumentId == id
+        && exists(/databases/$(database)/documents/instrumentRegistry/$(id))
+        && v.currency == get(/databases/$(database)/documents/instrumentRegistry/$(id)).data.currency
+        && v.source in ['Yahoo Finance','Alpha Vantage','Twelve Data']
+        && (v.source == 'Twelve Data' || (v.fxSource == 'ECB'
+          && (v.source == 'Yahoo Finance'
+            ? v.providerSymbol == get(/databases/$(database)/documents/instrumentRegistry/$(id)).data.yahooSymbol
+            : v.providerSymbol == get(/databases/$(database)/documents/instrumentRegistry/$(id)).data.providerSymbol)))
+        && v.fetchedAt is string && v.fetchedAt.size() <= 30
+        && v.quote is map && v.quote.keys().hasAll(['date','close']) && v.quote.keys().hasOnly(['date','close'])
+        && v.quote.date is string && v.quote.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && bounded(v.quote.close, 0.000001, 10000000)
+        && v.fxDate is string && v.fxDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && v.fxDate <= v.quote.date
+        && bounded(v.fxToDkk, 0.000001, 100000)
+        && (v.currency != 'DKK' || v.fxToDkk == 1)
+        && (!('fxSource' in v) || v.fxSource == 'ECB');
+    }
     function validReportedTrade(v, id) {
       return v is map && v.keys().hasAll(['source','dateTime','close','isin','mic','reportFile','fetchedAt'])
         && v.keys().hasOnly(['source','dateTime','close','isin','mic','reportFile','fetchedAt','transactionId'])

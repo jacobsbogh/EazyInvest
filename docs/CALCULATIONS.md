@@ -34,7 +34,7 @@ Transactions use an immutable ID, valid date, instrument ID, type, positive unit
 - Buy: increase units and average-cost basis by `units × unitPrice × historicalFX + fees`.
 - Sell: remove the proportionate average cost, decrease units, and recognize the difference between proceeds net of fees and removed basis.
 - Dividend: record `units × amountPerUnit × historicalFX − fees` as proceeds without changing units or basis.
-- Value: remaining units × latest available unadjusted quote × latest available FX. Alpha Vantage's current quote is stored separately from its monthly history. Quote and FX observations can be from different dates. ECB reference FX is an indicative conversion, not a broker execution rate.
+- Value: remaining units × latest available unadjusted quote × that quote record's dated FX. Independent lightweight quotes support valuation without loading historical prices; an opened legacy history remains a fallback. Price and FX are selected together. Quote and FX observations can be from different dates, with FX on/before the quote by at most seven days. ECB reference FX is an indicative conversion, not a broker execution rate.
 - Net invested: purchases plus fees minus sale proceeds net of fees minus recorded dividends net of fees.
 - Total gain: current investment value minus net invested. This includes both realized and unrealized results, before tax. It is not time-weighted or money-weighted performance.
 

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import {
   auth,
@@ -8,7 +8,7 @@ import {
   saveCloud,
   logout,
   fetchMarket,
-  loadCachedMarket,
+  fetchQuotes,
   fetchRegistry,
   fetchHistoryRequests,
   requestHistory,
@@ -22,6 +22,8 @@ import type { HistoryRequest } from '../../shared/discovery';
 import { demoWorkspace, emptyWorkspace, demoMarket } from './demo';
 import { parseWorkspace } from '../../shared/schema';
 import type { Workspace, InstrumentId, MarketSeries } from '../../shared/schema';
+import { quoteFromSeries, mergeQuotes, type MarketQuote } from '../../shared/quote';
+import { HistoryLoader, type HistoryState } from './history-loader';
 
 type Status = 'loading' | 'signed-out' | 'ready' | 'error';
 type AppContextValue = {
@@ -32,6 +34,9 @@ type AppContextValue = {
   error: string;
   notice: string;
   market: Partial<Record<InstrumentId, MarketSeries>>;
+  quotes: Partial<Record<InstrumentId, MarketQuote>>;
+  historyStatus: Record<string, HistoryState>;
+  ensureHistory: (ids: string[]) => Promise<HistoryState[]>;
   refreshing: boolean;
   instruments: Instrument[];
   getInstrument: (id: string) => Instrument;
@@ -59,6 +64,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [market, setMarket] = useState<Partial<Record<InstrumentId, MarketSeries>>>({});
+  const [quotes, setQuotes] = useState<Partial<Record<InstrumentId, MarketQuote>>>({});
+  const [historyStatus, setHistoryStatus] = useState<Record<string, HistoryState>>({});
+  const historyLoaderRef = useRef<HistoryLoader | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [discovered, setDiscovered] = useState<Instrument[]>([]);
   const [historyRequests, setHistoryRequests] = useState<Record<string, HistoryRequest>>({});
@@ -70,6 +78,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ]),
     ).values(),
   ];
+  const catalogRef = useRef(instruments);
+  catalogRef.current = instruments;
+  const ensureHistory = useCallback(
+    (ids: string[]) => historyLoaderRef.current?.load(ids) ?? Promise.resolve([]),
+    [],
+  );
   function replace(next: Workspace) {
     dataRef.current = next;
     setData(next);
@@ -91,7 +105,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     replace(next);
     setMode('demo');
-    setMarket(demoMarket());
+    const samples = demoMarket();
+    setMarket(samples);
+    setQuotes(
+      Object.fromEntries(
+        Object.values(samples).flatMap((series) => {
+          const quote = quoteFromSeries(series);
+          return quote ? [[quote.instrumentId, quote]] : [];
+        }),
+      ),
+    );
+    historyLoaderRef.current = null;
+    setHistoryStatus({});
     setStatus('ready');
     setError('');
   }
@@ -100,6 +125,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async (user) => {
       const session = ++sessionRef.current;
       setMarket({});
+      setQuotes({});
+      setHistoryStatus({});
+      historyLoaderRef.current = null;
+      setRefreshing(false);
       setDiscovered([]);
       setHistoryRequests({});
       replace(emptyWorkspace());
@@ -114,10 +143,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (session !== sessionRef.current) return;
         replace(stored ? parseWorkspace(stored.data) : emptyWorkspace());
         revisionRef.current = stored?.revision ?? 0;
+        historyLoaderRef.current = new HistoryLoader(
+          async (id) => {
+            const [series, requests] = await Promise.all([
+              fetchMarket(id, catalogRef.current),
+              fetchHistoryRequests([id]).catch(() => []),
+            ]);
+            if (session === sessionRef.current)
+              setHistoryRequests((old) => ({
+                ...old,
+                ...Object.fromEntries(requests.map((item) => [item.instrumentId, item])),
+              }));
+            return series;
+          },
+          (id, state) => setHistoryStatus((old) => ({ ...old, [id]: state })),
+          (series) => setMarket((old) => ({ ...old, [series.instrumentId]: series })),
+          () => session === sessionRef.current,
+        );
         setStatus('ready');
         setError('');
         try {
           const registry = await fetchRegistry().catch(() => []);
+          if (session !== sessionRef.current) return;
           const catalog = [
             ...new Map(
               [...referenceInstruments, ...registry, ...(stored?.data.customInstruments ?? [])].map(
@@ -125,18 +172,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
               ),
             ).values(),
           ];
-          const cached = await loadCachedMarket(catalog);
-          const requests = await fetchHistoryRequests(catalog.map((item) => item.id));
-          if (session === sessionRef.current) {
-            // Search may already have added a listing while the catalog's
-            // market/history reads were in flight. Keep those later discoveries.
+          if (session === sessionRef.current)
             setDiscovered((old) => [
               ...new Map([...registry, ...old].map((item) => [item.id, item])).values(),
             ]);
-            setMarket(Object.fromEntries(cached.map((item) => [item.instrumentId, item])));
-            setHistoryRequests(
-              Object.fromEntries(requests.map((item) => [item.instrumentId, item])),
-            );
+          const cached = await fetchQuotes(catalog);
+          if (session === sessionRef.current) {
+            setQuotes((old) => mergeQuotes(old, cached));
           }
         } catch {
           if (session === sessionRef.current)
@@ -220,21 +262,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ];
     let failed = 0;
     try {
-      for (const id of unique) {
-        try {
-          const result = await fetchMarket(id, instruments);
-          if (session === sessionRef.current)
-            setMarket((previous) => ({ ...previous, [id]: result }));
-        } catch {
-          failed++;
-        }
-      }
-      const requests = await fetchHistoryRequests(unique);
-      if (session === sessionRef.current)
-        setHistoryRequests((old) => ({
-          ...old,
-          ...Object.fromEntries(requests.map((item) => [item.instrumentId, item])),
-        }));
+      const latest = await fetchQuotes(catalogRef.current);
+      if (session !== sessionRef.current) return;
+      setQuotes((old) => mergeQuotes(old, latest));
+      // Refresh only histories that the user has already opened, or selected explicitly.
+      const historyIds = ids.filter((id) => historyStatus[id] !== undefined);
+      const states = (await historyLoaderRef.current?.load(historyIds, true)) ?? [];
+      failed = states.filter((state) => state === 'error').length;
+      if (session !== sessionRef.current) return;
       setNotice(
         failed
           ? `${failed} instrument(s) have no available update. Existing data is retained. Check the market-data workflow on GitHub.`
@@ -242,8 +277,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ? 'Latest synced market data loaded. Provider updates run separately on GitHub.'
             : 'Add an investment to your watchlist or portfolio first.',
       );
+    } catch {
+      if (session === sessionRef.current)
+        setNotice('Saved prices could not be refreshed. Existing data is retained.');
     } finally {
-      setRefreshing(false);
+      if (session === sessionRef.current) setRefreshing(false);
     }
   }
   async function queueHistory(id: string) {
@@ -267,6 +305,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await logout();
     replace(emptyWorkspace());
     setMarket({});
+    setQuotes({});
+    setHistoryStatus({});
+    historyLoaderRef.current = null;
     setDiscovered([]);
     setHistoryRequests({});
     setStatus('signed-out');
@@ -281,6 +322,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         error,
         notice,
         market,
+        quotes,
+        historyStatus,
+        ensureHistory,
         refreshing,
         instruments,
         getInstrument: (id) => resolveInstrument(id, instruments),
@@ -306,6 +350,13 @@ export function useApp() {
   const value = useContext(Context);
   if (!value) throw new Error('AppProvider is missing');
   return value;
+}
+export function useHistories(ids: string[]) {
+  const { ensureHistory } = useApp();
+  const key = [...new Set(ids)].sort().join(',');
+  useEffect(() => {
+    if (key) void ensureHistory(key.split(','));
+  }, [key, ensureHistory]);
 }
 export function friendlyError(err: unknown): string {
   const code = (err as { code?: string })?.code;

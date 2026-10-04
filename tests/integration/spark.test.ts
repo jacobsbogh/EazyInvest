@@ -11,12 +11,18 @@ import {
   loadRegistry,
   searchMarkets,
   queueHistory,
+  loadQuotes,
 } from '../../src/lib/cloud';
 import { instruments } from '../../shared/catalog';
 import { processRequests, seedRegistry } from '../../jobs/src/requests';
 import { dailyAllowance } from '../../jobs/src/budget';
 import { emptyWorkspace, demoMarket } from '../../src/lib/demo';
-import { parseYahooSeries } from '../../jobs/src/yahoo';
+import { parseYahooSeries, yahooSymbol } from '../../jobs/src/yahoo';
+import { refreshInstrument } from '../../jobs/src/market-cache';
+import { quoteSchema } from '../../shared/quote';
+import { historicalObservations } from '../../shared/historical-series';
+import { ProviderError } from '../../jobs/src/alpha-vantage';
+import { NasdaqReferences } from '../../jobs/src/nasdaq';
 
 const projectId = 'demo-eazyinvest';
 if (!process.env.FIRESTORE_EMULATOR_HOST || !process.env.FIREBASE_AUTH_EMULATOR_HOST)
@@ -330,5 +336,148 @@ describe('Spark workspace persistence', () => {
       '2022-01-01T00:00:00.000Z',
     );
     expect(fetches).toEqual(['av-amzn']);
+  });
+  it('refreshes daily raw quotes while leaving weekly history bytes and adjusted returns unchanged', async () => {
+    const item = instruments.find((entry) => entry.id === 'novo')!;
+    const now = new Date('2026-10-04T12:00:00Z');
+    const series = {
+      ...demoMarket().novo,
+      source: 'Yahoo Finance',
+      providerSymbol: 'NOVO-B.CO',
+      fetchedAt: '2026-10-03T12:00:00.000Z',
+      adjustment: 'splits-and-dividends',
+      closeAdjustment: 'splits',
+      fxSource: 'ECB',
+      fxDate: '2026-10-02',
+      quote: { date: '2026-10-02', close: 300 },
+      points: [
+        { date: '2026-08-31', close: 100, adjustedClose: 90, fxToDkk: 1, fxDate: '2026-08-31' },
+        { date: '2026-09-30', close: 120, adjustedClose: 110, fxToDkk: 1, fxDate: '2026-09-30' },
+      ],
+    };
+    await adminFirestore(admin).doc('market/novo').set(series);
+    const original = (await adminFirestore(admin).doc('market/novo').get()).data();
+    const fetchHistory = vi.fn(async () => {
+      throw new Error('A daily quote must not redownload fresh history');
+    });
+    const fetchQuote = vi.fn(async () =>
+      quoteSchema.parse({
+        instrumentId: 'novo',
+        currency: 'DKK',
+        source: 'Yahoo Finance',
+        providerSymbol: 'NOVO-B.CO',
+        fetchedAt: now.toISOString(),
+        quote: { date: '2026-10-02', close: 330 },
+        fxToDkk: 1,
+        fxDate: '2026-10-02',
+        fxSource: 'ECB',
+      }),
+    );
+    expect(
+      await refreshInstrument(clients[3].db, item, [], new Map(), fetchHistory, fetchQuote, now),
+    ).toMatchObject({ historyUpdated: false, quoteUpdated: true, failed: 0 });
+    const after = (await adminFirestore(admin).doc('market/novo').get()).data();
+    expect(after).toEqual(original);
+    expect(
+      historicalObservations(
+        (await loadMarket(clients[0].db, 'novo')) ?? undefined,
+        'DKK',
+      ).points.map((p) => p.value),
+    ).toEqual([90, 110]);
+    expect(
+      (await loadQuotes(clients[0].db)).find((quote) => quote.instrumentId === 'novo')?.quote.close,
+    ).toBe(330);
+    await refreshInstrument(clients[3].db, item, [], new Map(), fetchHistory, fetchQuote, now);
+    expect(fetchHistory).not.toHaveBeenCalled();
+    expect(fetchQuote).toHaveBeenCalledTimes(1);
+  });
+  it('keeps quote and history failures independent and clears cancelled references despite failed history retrieval', async () => {
+    const item = instruments.find((entry) => entry.id === 'novo')!;
+    const db = adminFirestore(admin);
+    const previous = (await db.doc('market/novo').get()).data()!;
+    await db.doc('market/novo').set({
+      ...previous,
+      fetchedAt: '2026-09-20T12:00:00.000Z',
+      reportedTrade: {
+        source: 'Nasdaq Nordic',
+        dateTime: '2026-10-02T14:55:00.000Z',
+        close: 301,
+        isin: item.isin,
+        mic: 'XCSE',
+        reportFile: 'NordicEquity-posttrade-2026-10-02T1655',
+        fetchedAt: '2026-10-04T12:00:00.000Z',
+        transactionId: 'cancel-me',
+      },
+    });
+    const references = new NasdaqReferences();
+    references.invalidated.add('XCSE:cancel-me');
+    const now = new Date('2026-10-05T12:00:00Z');
+    const next = quoteSchema.parse({
+      ...(await db.doc('marketQuotes/novo').get()).data(),
+      fetchedAt: now.toISOString(),
+      quote: { date: '2026-10-05', close: 340 },
+      fxDate: '2026-10-05',
+    });
+    const unavailable = async () => {
+      throw new ProviderError('unavailable');
+    };
+    const result = await refreshInstrument(
+      clients[3].db,
+      item,
+      [],
+      references,
+      unavailable,
+      async () => next,
+      now,
+    );
+    expect(result).toMatchObject({ failed: 1, quoteUpdated: true, historyUpdated: false });
+    expect((await db.doc('market/novo').get()).data()).toMatchObject({
+      fetchedAt: '2026-09-20T12:00:00.000Z',
+      points: previous.points,
+    });
+    expect((await db.doc('market/novo').get()).data()?.reportedTrade).toBeUndefined();
+    expect((await db.doc('marketQuotes/novo').get()).data()?.quote.close).toBe(340);
+    await db.doc('market/novo').set({ ...previous, fetchedAt: '2026-10-05T12:00:00.000Z' });
+    const later = new Date('2026-10-06T12:00:00Z');
+    expect(
+      await refreshInstrument(clients[3].db, item, [], new Map(), unavailable, unavailable, later),
+    ).toMatchObject({ failed: 1, quoteUpdated: false });
+    expect((await db.doc('marketQuotes/novo').get()).data()?.quote.close).toBe(340);
+    await expect(
+      refreshInstrument(
+        clients[3].db,
+        item,
+        [],
+        new Map(),
+        unavailable,
+        async () => {
+          throw new ProviderError('quota');
+        },
+        later,
+      ),
+    ).rejects.toMatchObject({ reason: 'quota' });
+  });
+  it('pages lightweight quotes and excludes malformed or substituted rows without reading histories', async () => {
+    const db = adminFirestore(admin);
+    const selected = instruments.filter((item) => yahooSymbol(item)).slice(0, 120);
+    for (const item of selected)
+      await db.doc(`marketQuotes/${item.id}`).set(
+        quoteSchema.parse({
+          instrumentId: item.id,
+          currency: item.currency,
+          source: 'Yahoo Finance',
+          providerSymbol: yahooSymbol(item),
+          fetchedAt: '2026-10-04T12:00:00.000Z',
+          quote: { date: '2026-10-02', close: 100 },
+          fxToDkk: item.currency === 'DKK' ? 1 : 7.46,
+          fxDate: '2026-10-02',
+          fxSource: 'ECB',
+        }),
+      );
+    await db.doc('marketQuotes/bad').set({ instrumentId: 'bad', points: [] });
+    const quotes = await loadQuotes(clients[0].db);
+    expect(quotes.length).toBeGreaterThanOrEqual(120);
+    expect(quotes.some((item) => item.instrumentId === 'bad')).toBe(false);
+    expect(quotes.every((item) => !('points' in item))).toBe(true);
   });
 });

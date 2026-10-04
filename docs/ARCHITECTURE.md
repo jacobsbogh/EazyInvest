@@ -6,16 +6,17 @@ A GitHub Actions job fetches ESMA Danish listing references, free Yahoo history 
 
 ## Permissions
 
-| Document                             | Owner               | Market writer       | Everyone else |
-| ------------------------------------ | ------------------- | ------------------- | ------------- |
-| `config/access`                      | Denied              | Denied              | Denied        |
-| `users/{ownerUid}/workspace/current` | Get, create, update | Denied              | Denied        |
-| `market/{catalogId}`                 | Get                 | Get, create, update | Denied        |
-| `instrumentRegistry/{id}`            | Get, bounded list   | Get/list/write      | Denied        |
-| `discoveryRequests/{hash}`           | Get, queue request  | Bounded list/update | Denied        |
-| `marketRequests/{id}`                | Get, queue request  | Bounded list/update | Denied        |
-| `marketSync/budget`                  | Denied              | Get/create/update   | Denied        |
-| Lists, deletes and other paths       | Denied              | Denied              | Denied        |
+| Document                             | Owner               | Market writer                     | Everyone else |
+| ------------------------------------ | ------------------- | --------------------------------- | ------------- |
+| `config/access`                      | Denied              | Denied                            | Denied        |
+| `users/{ownerUid}/workspace/current` | Get, create, update | Denied                            | Denied        |
+| `market/{catalogId}`                 | Get                 | Get, create, update               | Denied        |
+| `marketQuotes/{catalogId}`           | Get, bounded list   | Get, bounded list, create, update | Denied        |
+| `instrumentRegistry/{id}`            | Get, bounded list   | Get/list/write                    | Denied        |
+| `discoveryRequests/{hash}`           | Get, queue request  | Bounded list/update               | Denied        |
+| `marketRequests/{id}`                | Get, queue request  | Bounded list/update               | Denied        |
+| `marketSync/budget`                  | Denied              | Get/create/update                 | Denied        |
+| Lists, deletes and other paths       | Denied              | Denied                            | Denied        |
 
 The privileged Firebase console maintains `config/access`, containing `ownerUid` and optionally `marketWriterUid`. Use separate accounts. Missing configuration fails closed. No writer is needed until prices are connected.
 
@@ -63,5 +64,9 @@ Yahoo classifies the four Danish fund listings as `EQUITY`. Explicit provider
 ISIN matching, current-year checks and conservative planner handoff guards prevent
 unknown classifications from appearing as zero fees or ordinary share tax.
 
-Initial cloud cache loading merges previously discovered listings instead of
-overwriting them: owner research can proceed while the larger catalog loads.
+Initial cloud metadata loading merges previously discovered listings instead of
+overwriting them. Bounded `marketQuotes` pages supply prices without full history
+downloads. A session-scoped loader reads only selected Explore/strategy histories,
+deduplicates overlapping requests, remembers missing caches and retries explicitly.
+Late callbacks cannot repopulate signed-out state. Daily quote and weekly history
+contracts/verification are documented in [the performance milestone](DATA_PERFORMANCE.md).

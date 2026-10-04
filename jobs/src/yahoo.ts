@@ -5,23 +5,25 @@ import { historicalFxForDate, withHistoricalFx, type FxRates } from './ecb.js';
 import { publicFetch } from './http.js';
 import { ProviderError } from './alpha-vantage.js';
 import { instrumentSchema, providerInstrumentId } from '../../shared/instrument.js';
+import { quoteSchema, type MarketQuote } from '../../shared/quote.js';
 
 const positive = z.number().finite().positive();
+const metaSchema = z.object({
+  symbol: z.string(),
+  currency: z.string(),
+  exchangeName: z.string(),
+  instrumentType: z.string(),
+  exchangeTimezoneName: z.string(),
+  regularMarketTime: z.number().int(),
+  regularMarketPrice: positive,
+});
 const chartSchema = z.object({
   chart: z.object({
     error: z.unknown().nullable(),
     result: z
       .array(
         z.object({
-          meta: z.object({
-            symbol: z.string(),
-            currency: z.string(),
-            exchangeName: z.string(),
-            instrumentType: z.string(),
-            exchangeTimezoneName: z.string(),
-            regularMarketTime: z.number().int(),
-            regularMarketPrice: positive,
-          }),
+          meta: metaSchema,
           timestamp: z.array(z.number().int()),
           indicators: z.object({
             quote: z.array(z.object({ close: z.array(positive.nullable()) })).length(1),
@@ -61,26 +63,7 @@ export function parseYahooSeries(
     throw new ProviderError('coverage', 'No history for the exact listing.');
   if (parsed.result.length !== 1) throw new ProviderError('invalid', 'Ambiguous chart result.');
   const result = parsed.result[0];
-  const symbol = yahooSymbol(item);
-  const expectedExchange = item.mic
-    ? 'CPH'
-    : item.exchange === 'XETR'
-      ? 'GER'
-      : item.currency === 'DKK'
-        ? 'CPH'
-        : undefined;
-  if (
-    !symbol ||
-    result.meta.symbol !== symbol ||
-    result.meta.currency !== item.currency ||
-    result.meta.instrumentType !== (item.yahooType ?? (item.kind === 'Stock' ? 'EQUITY' : 'ETF')) ||
-    (expectedExchange && result.meta.exchangeName !== expectedExchange) ||
-    (item.mic && result.meta.exchangeTimezoneName !== 'Europe/Copenhagen') ||
-    (item.currency === 'USD' &&
-      !item.mic &&
-      !['NMS', 'NGM', 'NCM', 'NYQ', 'NYSE', 'NASDAQ'].includes(result.meta.exchangeName))
-  )
-    throw new ProviderError('invalid', 'Provider listing identity does not match.');
+  const quote = parseYahooQuote(input, item, fxHistory, now);
   const closes = result.indicators.quote[0].close,
     adjusted = result.indicators.adjclose[0].adjclose;
   if (closes.length !== result.timestamp.length || adjusted.length !== closes.length)
@@ -99,29 +82,91 @@ export function parseYahooSeries(
       throw new ProviderError('invalid', 'Missing adjusted observation.');
     months.set(date.slice(0, 7), { date, close: closes[i]!, adjustedClose: adjusted[i]! });
   });
-  const quoteDate = exchangeDate(result.meta.regularMarketTime, result.meta.exchangeTimezoneName);
-  if (result.meta.regularMarketTime * 1000 > now.getTime() || quoteDate > today)
-    throw new ProviderError('invalid', 'Future quote.');
-  const fx = historicalFxForDate(fxHistory, quoteDate, item.currency);
-  if (!fx) throw new ProviderError('unavailable', 'Dated quote FX is unavailable.');
   return withHistoricalFx(
     marketSchema.parse({
       instrumentId: item.id,
       currency: item.currency,
       source: 'Yahoo Finance',
-      providerSymbol: symbol,
+      providerSymbol: quote.providerSymbol,
       frequency: 'monthly',
       adjustment: 'splits-and-dividends',
       closeAdjustment: 'splits',
-      fetchedAt: now.toISOString(),
-      fxToDkk: fx.fxToDkk,
-      fxDate: fx.fxDate,
+      fetchedAt: quote.fetchedAt,
+      fxToDkk: quote.fxToDkk,
+      fxDate: quote.fxDate,
       fxSource: 'ECB',
       points: [...months.values()],
-      quote: { date: quoteDate, close: result.meta.regularMarketPrice },
+      quote: quote.quote,
     }),
     fxHistory,
   );
+}
+
+export function parseYahooQuote(
+  input: unknown,
+  item: Instrument,
+  fxHistory: readonly FxRates[],
+  now = new Date(),
+): MarketQuote {
+  const chart = z
+    .object({
+      chart: z.object({
+        error: z.unknown().nullable(),
+        result: z.array(z.object({ meta: metaSchema })).nullable(),
+      }),
+    })
+    .parse(input).chart;
+  if (chart.error || !chart.result?.length)
+    throw new ProviderError('coverage', 'No quote for the exact listing.');
+  if (chart.result.length !== 1) throw new ProviderError('invalid', 'Ambiguous quote result.');
+  const meta = chart.result[0].meta;
+  const symbol = yahooSymbol(item);
+  const exchange = item.mic ? 'CPH' : item.exchange === 'XETR' ? 'GER' : undefined;
+  const timezone = item.mic
+    ? 'Europe/Copenhagen'
+    : item.exchange === 'XETR'
+      ? 'Europe/Berlin'
+      : 'America/New_York';
+  if (
+    !symbol ||
+    meta.symbol !== symbol ||
+    meta.currency !== item.currency ||
+    meta.instrumentType !== (item.yahooType ?? (item.kind === 'Stock' ? 'EQUITY' : 'ETF')) ||
+    (exchange && meta.exchangeName !== exchange) ||
+    meta.exchangeTimezoneName !== timezone ||
+    (!exchange && !['NMS', 'NGM', 'NCM', 'NYQ', 'NYSE', 'NASDAQ'].includes(meta.exchangeName))
+  )
+    throw new ProviderError('invalid', 'Provider quote listing identity does not match.');
+  if (meta.regularMarketTime * 1000 > now.getTime())
+    throw new ProviderError('invalid', 'Future quote.');
+  const date = exchangeDate(meta.regularMarketTime, meta.exchangeTimezoneName);
+  const fx = historicalFxForDate(fxHistory, date, item.currency);
+  if (!fx) throw new ProviderError('unavailable', 'Dated quote FX is unavailable.');
+  return quoteSchema.parse({
+    instrumentId: item.id,
+    currency: item.currency,
+    source: 'Yahoo Finance',
+    providerSymbol: symbol,
+    fetchedAt: now.toISOString(),
+    quote: { date, close: meta.regularMarketPrice },
+    fxToDkk: fx.fxToDkk,
+    fxDate: fx.fxDate,
+    fxSource: 'ECB',
+  });
+}
+
+export async function fetchYahooQuote(
+  item: Instrument,
+  fxHistory: readonly FxRates[],
+): Promise<MarketQuote> {
+  const symbol = yahooSymbol(item);
+  if (!symbol)
+    throw new ProviderError('coverage', 'No verified free quote mapping for this listing.');
+  const url = new URL(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`,
+  );
+  url.search = new URLSearchParams({ range: '5d', interval: '1d' }).toString();
+  return parseYahooQuote(await (await publicFetch(url)).json(), item, fxHistory);
 }
 
 export async function fetchYahooSeries(

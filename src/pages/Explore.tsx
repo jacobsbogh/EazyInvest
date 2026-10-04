@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search, Star, ArrowUpRight, RefreshCw } from 'lucide-react';
-import { useApp } from '../lib/store';
+import { useApp, useHistories } from '../lib/store';
 import { MarketSearch } from '../components/MarketSearch';
 import { FundFacts } from '../components/FundFacts';
 import type { InstrumentId } from '../../shared/schema';
 import { maxDrawdown } from '../../shared/finance';
-import { historicalComparison, latestQuote } from '../../shared/market';
+import { historicalComparison } from '../../shared/market';
 import { historicalObservations } from '../../shared/historical-series';
 import { HoldingPeriodAnalysis } from '../components/HoldingPeriodAnalysis';
 import { HistoricalSavings } from '../components/HistoricalSavings';
@@ -15,11 +15,14 @@ import { PriceChart } from '../components/charts';
 import { date, number, percent } from '../lib/format';
 import { danishCatalogDate } from '../../shared/catalog';
 import { historyIsStale, ecbHistoryStart } from '../../shared/market-policy';
+import { currentQuote, quoteIsStale } from '../../shared/quote';
 
 export default function Explore() {
   const {
     data,
     market,
+    quotes,
+    historyStatus,
     mode,
     update,
     saving,
@@ -59,6 +62,7 @@ export default function Explore() {
         (filter === 'Watchlist' && data.watchlist.some((w) => w.instrumentId === i.id))),
   );
   const selectedIds = [selected, ...compare.filter((id) => id !== selected)].slice(0, 3);
+  useHistories(selectedIds);
   const pageSize = 20;
   const currentPage = Math.min(page, Math.max(0, Math.ceil(rows.length / pageSize) - 1));
   const visibleRows = rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
@@ -72,7 +76,8 @@ export default function Explore() {
   const fullHistory = historicalObservations(series, analysisCurrency);
   const dkkHistory = historicalObservations(series, 'DKK');
   const chartCurrency = analysisCurrency === 'DKK' ? 'DKK' : item.currency;
-  const last = latestQuote(series);
+  const pricing = currentQuote(series, quotes[selected]);
+  const last = pricing?.quote;
   const historyLast = points.at(-1);
   const first = points[0];
   async function toggleWatch(id: InstrumentId) {
@@ -162,7 +167,8 @@ export default function Explore() {
               </thead>
               <tbody>
                 {visibleRows.map((i) => {
-                  const price = latestQuote(market[i.id]);
+                  const pricing = currentQuote(market[i.id], quotes[i.id]);
+                  const price = pricing?.quote;
                   const saved = data.watchlist.some((w) => w.instrumentId === i.id);
                   return (
                     <tr key={i.id} className={selected === i.id ? 'selected-row' : ''}>
@@ -190,7 +196,7 @@ export default function Explore() {
                       <td>{price ? `${number(price.close)} ${i.currency}` : 'Not loaded'}</td>
                       <td className="muted">
                         {price
-                          ? `${date(price.date)}${mode === 'cloud' && historyIsStale(market[i.id]!) ? ' · Stale' : ''}`
+                          ? `${date(price.date)}${mode === 'cloud' && pricing && quoteIsStale(pricing) ? ' · Stale' : ''}`
                           : i.mic && !i.yahooSymbol
                             ? 'History unavailable'
                             : '—'}
@@ -258,22 +264,34 @@ export default function Explore() {
         <div>
           <h2>{item.ticker}: history coverage</h2>
           <p>
-            {series
-              ? `${mode === 'demo' ? 'Generated sample' : series.source} history: ${series.points[0].date} to ${series.points.at(-1)!.date}.${mode === 'cloud' && historyIsStale(series) ? ' Data is over a week old; the last available cache is shown.' : ''}`
-              : item.mic && !item.yahooSymbol
-                ? 'This official listing has no unambiguous free history mapping yet. It remains available for your watchlist and research.'
-                : historyRequests[selected]?.status === 'pending'
-                  ? 'History is queued. Check after the next scheduled data update.'
-                  : historyRequests[selected]?.status === 'unavailable'
-                    ? 'The free source does not support this exact listing.'
-                    : 'Historical data has not been requested for this listing.'}
+            {historyStatus[selected] === 'loading'
+              ? 'Loading saved history…'
+              : historyStatus[selected] === 'error'
+                ? 'Saved history could not be loaded. Retry with Refresh data.'
+                : series
+                  ? `${mode === 'demo' ? 'Generated sample' : series.source} history: ${series.points[0].date} to ${series.points.at(-1)!.date}.${mode === 'cloud' && historyIsStale(series) ? ' Data is over a week old; the last available cache is shown.' : ''}`
+                  : item.mic && !item.yahooSymbol
+                    ? 'This official listing has no unambiguous free history mapping yet. It remains available for your watchlist and research.'
+                    : historyRequests[selected]?.status === 'pending'
+                      ? 'History is queued. Check after the next scheduled data update.'
+                      : historyRequests[selected]?.status === 'unavailable'
+                        ? 'The free source does not support this exact listing.'
+                        : 'Historical data has not been requested for this listing.'}
           </p>
           <p className="text-small muted">
             {item.isin || 'ISIN not verified'} · {item.exchange} · {item.currency}
           </p>
           {mode === 'cloud' && (
             <p className="text-small muted">
-              History refreshes weekly. Prices and monthly observations show their actual dates.
+              Quotes are checked each scheduled trading-day update; history refreshes weekly. Prices
+              and monthly observations show their actual dates.
+            </p>
+          )}
+          {pricing && (
+            <p className="text-small muted">
+              Latest quote: {number(pricing.quote.close)} {item.currency} · observed{' '}
+              {date(pricing.quote.date)} · checked {date(pricing.fetchedAt)}
+              {mode === 'cloud' && quoteIsStale(pricing) ? ' · Stale' : ''}.
             </p>
           )}
           {series?.reportedTrade && (
@@ -298,6 +316,7 @@ export default function Explore() {
               className="button secondary"
               disabled={
                 mode === 'demo' ||
+                historyStatus[selected] === 'loading' ||
                 (item.mic !== undefined && !item.yahooSymbol) ||
                 historyRequests[selected]?.status === 'pending'
               }
@@ -461,7 +480,13 @@ export default function Explore() {
             </>
           ) : (
             <Empty
-              title="Ready for real market data"
+              title={
+                historyStatus[selected] === 'loading'
+                  ? 'Loading history'
+                  : historyStatus[selected] === 'error'
+                    ? 'History unavailable'
+                    : 'Ready for real market data'
+              }
               action={
                 <button
                   className="button secondary"
@@ -472,8 +497,11 @@ export default function Explore() {
                 </button>
               }
             >
-              This listing has no saved provider data yet. The free source may not cover every
-              exchange. Missing data is never replaced with sample prices.
+              {historyStatus[selected] === 'loading'
+                ? 'The saved price series is loading.'
+                : historyStatus[selected] === 'error'
+                  ? 'The saved cache could not be read. Existing data is retained; retry to check again.'
+                  : 'This listing has no saved provider history yet. The free source may not cover every exchange. Missing data is never replaced with sample prices.'}
             </Empty>
           )}
           <div className="compare-options">
@@ -526,10 +554,16 @@ export default function Explore() {
           </Note>
           {series && (
             <div className="source-line">
-              Source: {series.source === 'demo' ? 'Generated demonstration' : series.source} ·
-              {series.providerSymbol && <>{series.providerSymbol} · </>}
-              Retrieved {date(series.fetchedAt)} · Quote {date(last!.date)} ·{' '}
-              {series.fxSource ?? 'Provider'} FX {date(series.fxDate)}
+              History source: {series.source === 'demo' ? 'Generated demonstration' : series.source}
+              {series.providerSymbol && <> · {series.providerSymbol}</>} · History retrieved{' '}
+              {date(series.fetchedAt)} · Quote source:{' '}
+              {pricing?.source === 'demo'
+                ? 'Generated demonstration'
+                : (pricing?.source ?? 'unavailable')}
+              {pricing?.providerSymbol && <> · {pricing.providerSymbol}</>} · Quote{' '}
+              {last ? date(last.date) : 'unavailable'} · Quote checked{' '}
+              {pricing ? date(pricing.fetchedAt) : 'unavailable'} ·{' '}
+              {pricing?.fxSource ?? 'Provider'} FX {pricing ? date(pricing.fxDate) : 'unavailable'}
               {series.closeAdjustment === 'splits' && (
                 <> · Historical Close is split-adjusted; Adj Close also includes dividends.</>
               )}

@@ -15,6 +15,7 @@ import {
   searchMarkets,
   queueHistory,
   loadHistoryRequests,
+  loadQuotes,
 } from './cloud';
 import { instruments, type Instrument } from '../../shared/catalog';
 import type { Workspace, InstrumentId } from '../../shared/schema';
@@ -52,18 +53,10 @@ export async function saveCloud(data: Workspace, revision: number) {
 }
 export async function fetchMarket(instrumentId: InstrumentId, catalog: Instrument[] = instruments) {
   if (!db) throw new Error('Connect Firebase to load market data.');
-  const series = await loadMarket(db, instrumentId, catalog);
-  if (!series) throw new Error('No provider data yet. Run the market-data workflow on GitHub.');
-  return series;
+  return loadMarket(db, instrumentId, catalog);
 }
-export async function loadCachedMarket(catalog: Instrument[] = instruments) {
-  if (!db) return [];
-  const snapshots = await Promise.allSettled(
-    catalog.map((item) => loadMarket(db!, item.id, catalog)),
-  );
-  return snapshots.flatMap((result) =>
-    result.status === 'fulfilled' && result.value ? [result.value] : [],
-  );
+export async function fetchQuotes(catalog: Instrument[] = instruments) {
+  return db ? loadQuotes(db, catalog) : [];
 }
 export async function fetchRegistry() {
   return db ? loadRegistry(db) : [];

@@ -4,6 +4,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import AxeBuilder from '@axe-core/playwright';
 import { getInstrument } from '../../shared/catalog';
+import { quoteSchema } from '../../shared/quote';
 
 if (
   process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8080' ||
@@ -462,4 +463,89 @@ test('owner saves and reloads a Danish fund strategy using adjusted history and 
     await expect(outcome).toContainText('3.310');
   }
   await expect(page.getByRole('button', { name: 'Use budget in planner' })).toBeEnabled();
+});
+
+test('sign-in values holdings from lightweight quotes and reads only histories opened for research', async ({
+  page,
+}) => {
+  const db = getFirestore(admin);
+  await db.doc('marketQuotes/novo').set(
+    quoteSchema.parse({
+      instrumentId: 'novo',
+      currency: 'DKK',
+      source: 'Yahoo Finance',
+      providerSymbol: 'NOVO-B.CO',
+      fetchedAt: '2026-10-04T12:00:00.000Z',
+      quote: { date: '2026-10-02', close: 350 },
+      fxToDkk: 1,
+      fxDate: '2026-10-02',
+      fxSource: 'ECB',
+    }),
+  );
+  const workspace = (await db.doc(`users/${ownerUid}/workspace/current`).get()).data()!;
+  await db.doc(`users/${ownerUid}/workspace/current`).set({
+    ...workspace,
+    revision: workspace.revision + 1,
+    data: {
+      ...workspace.data,
+      transactions: [
+        {
+          id: 'quote-only-buy',
+          instrumentId: 'novo',
+          type: 'buy',
+          date: '2026-01-02',
+          quantity: 2,
+          price: 100,
+          fx: 1,
+          fees: 0,
+          note: '',
+        },
+      ],
+      watchlist: [{ instrumentId: 'novo', note: '' }],
+    },
+  });
+  const historyReads: string[] = [];
+  page.on('request', (request) => {
+    if (!request.url().includes('Firestore/Listen/channel') || !request.postData()) return;
+    for (const value of new URLSearchParams(request.postData()!).values())
+      for (const match of value.matchAll(/\/documents\/market\/([a-z0-9-]+)/g))
+        historyReads.push(match[1]);
+  });
+  await signIn(page, ownerEmail);
+  await expect(page.getByRole('heading', { name: 'Your future starts here.' })).toBeVisible();
+  await expect(page.locator('.watch-price')).toContainText('350 DKK');
+  expect(historyReads).toEqual([]);
+  await page.goto('./#/portfolio');
+  await expect(page.locator('.stat-grid')).toContainText('700');
+  expect(historyReads).toEqual([]);
+  await page.goto('./#/explore?investment=novo');
+  await expect(page.getByText('Yahoo Finance history: 2026-07-31 to 2026-09-30.')).toBeVisible();
+  await expect(page.locator('.detail-metrics').first()).toContainText('350');
+  expect([...new Set(historyReads)]).toEqual(['novo']);
+  const count = historyReads.length;
+  await page.getByRole('button', { name: '1Y', exact: true }).click();
+  await page.getByRole('button', { name: 'Trading currency', exact: true }).click();
+  expect(historyReads.length).toBe(count);
+  await page.getByRole('checkbox', { name: 'EUNL', exact: true }).check();
+  await expect(page.getByText('No overlapping history', { exact: true })).toBeVisible();
+  expect([...new Set(historyReads)]).toEqual(['novo', 'eunl']);
+});
+
+test('missing saved history is disclosed, remembered and retried after an import', async ({
+  page,
+}) => {
+  const db = getFirestore(admin);
+  const item = getInstrument('sppw');
+  await db.doc('instrumentRegistry/sppw').set(item);
+  await db.doc('market/sppw').delete();
+  await signIn(page, ownerEmail);
+  await expect(page.getByRole('heading', { name: 'Your future starts here.' })).toBeVisible();
+  await page.goto('./#/explore?investment=sppw');
+  await expect(page.getByText('Ready for real market data', { exact: true })).toBeVisible();
+  const template = (await db.doc('market/spyi').get()).data()!;
+  await db.doc('market/sppw').set({ ...template, instrumentId: 'sppw', providerSymbol: 'SPPW.DE' });
+  await page.getByRole('button', { name: '1Y', exact: true }).click();
+  await expect(page.getByText('Ready for real market data', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Refresh data', exact: true }).click();
+  await expect(page.getByText('Yahoo Finance history: 2026-07-31 to 2026-09-30.')).toBeVisible();
 });

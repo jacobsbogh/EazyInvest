@@ -1,21 +1,21 @@
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer, setDoc, terminate } from 'firebase/firestore';
-import { marketSchema, type MarketSeries } from '../../shared/schema.js';
+import { getFirestore, terminate } from 'firebase/firestore';
+import { type MarketSeries } from '../../shared/schema.js';
 import { instruments, type Instrument } from '../../shared/catalog.js';
 import { instrumentSchema } from '../../shared/instrument.js';
-import { freshHistory } from '../../shared/market-policy.js';
 import { fetchAlphaSeries, ProviderError } from './alpha-vantage.js';
 import { fetchEcbHistory, withHistoricalFx } from './ecb.js';
 import { dailyAllowance } from './budget.js';
 import { seedRegistry, processRequests } from './requests.js';
-import { fetchYahooSeries, searchYahooListings } from './yahoo.js';
+import { fetchYahooSeries, fetchYahooQuote, searchYahooListings } from './yahoo.js';
 import {
   fetchDanishListings,
   enrichDanishListing,
   mergeDanishListings,
 } from './danish-listings.js';
-import { fetchNasdaqReferences, withNasdaqReference, nasdaqTradeInvalidated } from './nasdaq.js';
+import { fetchNasdaqReferences, withNasdaqReference } from './nasdaq.js';
+import { refreshInstrument } from './market-cache.js';
 import { loadRegistry } from '../../src/lib/cloud.js';
 
 async function main() {
@@ -127,48 +127,23 @@ async function main() {
     const requests = await processRequests(db, '', credit, fetchSeries, 'history');
     failed += requests.failed;
     if (requests.quota) throw new ProviderError('quota');
-    // Import the whole Danish catalogue automatically. Weekly history freshness
-    // avoids repeated downloads; exchange references are collected each run.
+    // Full histories refresh weekly; lightweight quotes refresh each UTC run day.
+    // Include discovered listings so requested US investments get daily quotes too.
     for (const item of catalog.values()) {
       if (item.referenceStatus === 'retained') continue;
-      if (!item.mic && !instruments.some((reference) => reference.id === item.id)) continue;
-      const ref = doc(db, 'market', item.id);
       try {
-        const snapshot = await getDocFromServer(ref);
-        const cached = marketSchema.safeParse(snapshot.data());
-        if (cached.success && freshHistory(cached.data, item)) {
-          const refreshed = withNasdaqReference(
-            withHistoricalFx(cached.data, fxHistory),
-            item,
-            references,
-          );
-          if (JSON.stringify(refreshed) !== JSON.stringify(cached.data))
-            await setDoc(ref, refreshed);
-          updated++;
-          continue;
-        }
-        // A known cancellation remains valid even when a later price download
-        // fails. Clear/replace its reference before refreshing stale history.
-        if (
-          cached.success &&
-          cached.data.reportedTrade &&
-          nasdaqTradeInvalidated(cached.data.reportedTrade, references)
-        )
-          await setDoc(ref, withNasdaqReference(cached.data, item, references));
-        let series = await fetchSeries(item);
-        if (
-          !series.reportedTrade &&
-          cached.success &&
-          cached.data.reportedTrade &&
-          cached.data.reportedTrade.isin === item.isin &&
-          cached.data.reportedTrade.mic === item.mic &&
-          !nasdaqTradeInvalidated(cached.data.reportedTrade, references)
-        )
-          series = marketSchema.parse({ ...series, reportedTrade: cached.data.reportedTrade });
-        await setDoc(ref, series);
-        updated++;
+        const result = await refreshInstrument(
+          db,
+          item,
+          fxHistory,
+          references,
+          fetchSeries,
+          (definition) => fetchYahooQuote(definition, fxHistory),
+        );
+        failed += result.failed;
+        if (result.observations || result.quoteDate) updated++;
         console.log(
-          `${item.id}: ${series.points.length} monthly observations; ${series.source}; quote ${series.quote!.date}.`,
+          `${item.id}: ${result.observations ?? 0} history observations; quote ${result.quoteDate ?? 'unavailable'}; history ${result.historyUpdated ? 'updated' : 'retained'}.`,
         );
         await new Promise((resolve) => setTimeout(resolve, 300));
       } catch (error) {

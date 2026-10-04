@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useApp } from '../lib/store';
+import { useApp, useHistories } from '../lib/store';
 import { strategySchema, type Strategy } from '../../shared/strategy';
 import {
   commonStrategyHistory,
@@ -21,6 +21,7 @@ export default function Strategies() {
     data,
     instruments,
     market,
+    historyStatus,
     mode,
     update,
     saving,
@@ -84,6 +85,8 @@ export default function Strategies() {
   let months: string[] = [];
   let issue = validation.success ? '' : validation.error.issues[0].message;
   const selected = competitor ? [draft, competitor] : [draft];
+  const historyIds = selected.flatMap((s) => s.allocations.map((a) => a.instrumentId));
+  useHistories(historyIds);
   if (validation.success) {
     try {
       const history = commonStrategyHistory(selected, market, { demo: mode === 'demo' });
@@ -100,6 +103,8 @@ export default function Strategies() {
       issue = err instanceof Error ? err.message : 'The historical comparison is unavailable.';
     }
   }
+  if (historyIds.some((id) => historyStatus[id] === 'loading'))
+    issue = 'Loading selected histories…';
   function change<K extends keyof Strategy>(key: K, value: Strategy[K]) {
     setDraft((old) => ({ ...old, [key]: value }));
   }

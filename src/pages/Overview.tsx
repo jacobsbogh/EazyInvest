@@ -5,11 +5,11 @@ import { latestQuote } from '../../shared/market';
 import { PageHeading, Stat, Empty } from '../components/ui';
 import { ProjectionChart } from '../components/charts';
 import { portfolio, scenarios } from '../../shared/finance';
-import { money, number, percent } from '../lib/format';
+import { money, number, percent, date } from '../lib/format';
 
 export default function Overview() {
-  const { data, market, mode, refreshing, refreshMarket, getInstrument } = useApp();
-  const holdings = portfolio(data.transactions, market);
+  const { data, market, quotes, mode, refreshing, refreshMarket, getInstrument } = useApp();
+  const holdings = portfolio(data.transactions, market, quotes);
   const projection = scenarios(data.plan);
   const end = projection.at(-1)!;
   const progress = Math.min(100, Math.max(0, ((holdings.value ?? 0) / data.plan.goal) * 100));
@@ -230,7 +230,7 @@ export default function Overview() {
               const series = market[item.id];
               const first = series?.points[0];
               const historyLast = series?.points.at(-1);
-              const last = latestQuote(series);
+              const last = latestQuote(series, quotes[item.id]);
               const change =
                 first && historyLast
                   ? series?.adjustment
@@ -253,7 +253,9 @@ export default function Overview() {
                     <span>
                       {change !== undefined
                         ? `${percent(change)} · ${mode === 'demo' ? 'sample' : series?.adjustment ? 'adjusted history' : 'period'}`
-                        : 'Connect data'}{' '}
+                        : last
+                          ? date(last.date)
+                          : 'No saved quote'}{' '}
                       <ArrowUpRight size={12} />
                     </span>
                   </div>

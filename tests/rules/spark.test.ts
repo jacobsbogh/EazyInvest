@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { getInstrument } from '../../shared/catalog';
 import { emptyWorkspace, demoMarket } from '../../src/lib/demo';
+import { quoteSchema } from '../../shared/quote';
 let env: RulesTestEnvironment;
 const workspace = () => ({ revision: 1, data: emptyWorkspace() });
 const market = () => ({ ...demoMarket().vwce, source: 'Twelve Data' });
@@ -42,6 +43,50 @@ afterAll(async () => {
   await env?.cleanup();
 });
 describe('Spark owner and market-writer boundaries', () => {
+  it('protects lightweight quotes with bounded owner reads, exact listing identity and writer-only updates', async () => {
+    const writer = env.authenticatedContext('writer').firestore();
+    const owner = env.authenticatedContext('owner').firestore();
+    await assertSucceeds(setDoc(doc(writer, 'instrumentRegistry/novo'), getInstrument('novo')));
+    const quote = quoteSchema.parse({
+      instrumentId: 'novo',
+      currency: 'DKK',
+      source: 'Yahoo Finance',
+      providerSymbol: 'NOVO-B.CO',
+      fetchedAt: '2026-10-04T12:00:00.000Z',
+      quote: { date: '2026-10-02', close: 300 },
+      fxToDkk: 1,
+      fxDate: '2026-10-02',
+      fxSource: 'ECB',
+    });
+    const ref = doc(writer, 'marketQuotes/novo');
+    await assertSucceeds(setDoc(ref, quote));
+    await assertSucceeds(getDoc(doc(owner, 'marketQuotes/novo')));
+    await assertSucceeds(getDocs(query(collection(owner, 'marketQuotes'), limit(100))));
+    await assertFails(getDocs(collection(owner, 'marketQuotes')));
+    await assertFails(getDocs(query(collection(owner, 'marketQuotes'), limit(101))));
+    for (const change of [
+      { instrumentId: 'msft' },
+      { currency: 'EUR' },
+      { providerSymbol: 'NVO' },
+      { source: 'demo' },
+      { fxToDkk: 2 },
+      { fxDate: '2026-10-03' },
+      { points: [] },
+      { quote: { date: '2026-10-02', close: 0 } },
+    ])
+      await assertFails(setDoc(ref, { ...quote, ...change }));
+    await assertFails(
+      setDoc(doc(writer, 'marketQuotes/unknown'), { ...quote, instrumentId: 'unknown' }),
+    );
+    await assertFails(setDoc(doc(owner, 'marketQuotes/novo'), quote));
+    await assertFails(deleteDoc(ref));
+    for (const context of [env.unauthenticatedContext(), env.authenticatedContext('stranger')]) {
+      await assertFails(getDoc(doc(context.firestore(), 'marketQuotes/novo')));
+      await assertFails(
+        getDocs(query(collection(context.firestore(), 'marketQuotes'), limit(100))),
+      );
+    }
+  });
   it('accepts exact free Danish histories and official trade references while rejecting substitutions and owner writes', async () => {
     const writer = env.authenticatedContext('writer').firestore();
     const owner = env.authenticatedContext('owner').firestore();

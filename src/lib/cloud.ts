@@ -16,6 +16,7 @@ import type { InstrumentId, Workspace } from '../../shared/schema.js';
 import { instruments, type Instrument } from '../../shared/catalog.js';
 import { instrumentSchema } from '../../shared/instrument.js';
 import { marketMatchesListing } from '../../shared/market-policy.js';
+import { quoteSchema, quoteMatchesListing, type MarketQuote } from '../../shared/quote.js';
 import {
   discoverySchema,
   historyRequestSchema,
@@ -84,6 +85,34 @@ export async function loadRegistry(db: Firestore): Promise<Instrument[]> {
     }
     if (result.size < 100) return items;
     if (items.length >= 2000) throw new Error('Registry exceeded the supported catalogue size.');
+    cursor = result.docs.at(-1)!.id;
+  }
+}
+export async function loadQuotes(
+  db: Firestore,
+  catalog: Instrument[] = instruments,
+): Promise<MarketQuote[]> {
+  const items: MarketQuote[] = [];
+  let cursor: string | undefined;
+  let count = 0;
+  for (;;) {
+    const result = await getDocsFromServer(
+      query(
+        collection(db, 'marketQuotes'),
+        orderBy(documentId()),
+        ...(cursor ? [startAfter(cursor)] : []),
+        limit(100),
+      ),
+    );
+    for (const snapshot of result.docs) {
+      count++;
+      const parsed = quoteSchema.safeParse(snapshot.data());
+      const item = catalog.find((entry) => entry.id === snapshot.id);
+      // A malformed/mismatched row must not hide other valid prices.
+      if (parsed.success && item && quoteMatchesListing(parsed.data, item)) items.push(parsed.data);
+    }
+    if (result.size < 100) return items;
+    if (count >= 2000) throw new Error('Quote cache exceeded the supported catalog size.');
     cursor = result.docs.at(-1)!.id;
   }
 }

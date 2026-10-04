@@ -12,6 +12,7 @@ export default function Portfolio() {
   const {
     data,
     market,
+    quotes,
     mode,
     update,
     saving,
@@ -21,7 +22,7 @@ export default function Portfolio() {
     instruments,
     getInstrument,
   } = useApp();
-  const holdings = portfolio(data.transactions, market);
+  const holdings = portfolio(data.transactions, market, quotes);
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [preview, setPreview] = useState<Transaction[] | null>(null);

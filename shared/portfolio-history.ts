@@ -118,7 +118,7 @@ export function backtestStrategy(
   let trough: string | null = null;
   let recovery: string | null = null;
   let deepestPeakIndex = 100;
-  let worstMonth = 0;
+  let worstMonth = Number.POSITIVE_INFINITY;
   const points = selected.map((p, i) => {
     if (i > 0) {
       const before = balances.reduce((sum, b) => sum + b, 0);

@@ -90,6 +90,11 @@ describe('saved strategies and migrations', () => {
   });
 });
 describe('independent historical portfolio calculations', () => {
+  it('reports the smallest observed gain when every month is positive', () => {
+    const s = strategy();
+    const h = commonStrategyHistory([s], { vwce: series('vwce', [100, 110, 132]) }, options);
+    expect(backtestStrategy(s, h).worstMonth).toBeCloseTo(0.1);
+  });
   it('keeps flat investments equal to contributions', () => {
     const s = strategy({ initial: 200, monthly: 100 });
     const h = commonStrategyHistory([s], { vwce: series('vwce', [100, 100, 100]) }, options);

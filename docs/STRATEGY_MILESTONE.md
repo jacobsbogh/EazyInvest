@@ -55,8 +55,8 @@ dashboard. Free data sources, GitHub Pages and Firebase Spark remain requirement
 
 - Search/coverage, saved strategies, historical comparisons, connected dashboard
   and planner, and verified fund facts are implemented.
-- Frontend/job builds, 101 unit tests, 8 emulator integration tests, 14 permission
-  tests, 20 desktop/mobile demo tests and 8 cloud browser tests pass (151 total).
+- Frontend/job builds, 102 unit tests, 8 emulator integration tests, 14 permission
+  tests, 20 desktop/mobile demo tests and 8 cloud browser tests pass (152 total).
 - Implementation is ready for review. Production rules/index deployment requires
   explicit approval after automatic approval review rejected the live access-control
   change. Publish the matching Pages release after the backend deployment succeeds.

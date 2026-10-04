@@ -399,6 +399,16 @@ export default function Strategies() {
           </button>
           {saved && (
             <div className="strategy-actions">
+              {!dirty && (
+                <>
+                  <Link className="button secondary" to={`/holdings?strategy=${draft.id}`}>
+                    Review holdings & overlap
+                  </Link>
+                  <Link className="button secondary" to={`/contributions?strategy=${draft.id}`}>
+                    Plan monthly contributions
+                  </Link>
+                </>
+              )}
               <button
                 type="button"
                 className="button secondary"

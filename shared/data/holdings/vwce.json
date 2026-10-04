@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "instrumentId": "vwce",
+  "fundIsin": "IE00BK5BQT80",
+  "source": "https://www.vanguard.co.uk/professional/product/etf/equity/9679/ftse-all-world-ucits",
+  "identitySource": "https://www.ishares.com/uk/individual/en/products/251882/ishares-msci-world-ucits-etf-acc-fund",
+  "asOf": "2026-08-31",
+  "checkedAt": "2026-10-04",
+  "method": "reviewed-subset",
+  "reportedEquityWeight": null,
+  "rescaled": false,
+  "holdings": [
+    ["US67066G1040", "NVIDIA Corp", 4.76598, "United States", "Technology", "NVDA", "NASDAQ"],
+    ["US0378331005", "Apple Inc", 4.23529, "United States", "Technology", "AAPL", "NASDAQ"],
+    ["US5949181045", "Microsoft Corp", 3.4866, "United States", "Technology", "MSFT", "NASDAQ"],
+    [
+      "US0231351067",
+      "Amazon.com Inc",
+      2.33245,
+      "United States",
+      "Consumer Discretionary",
+      "AMZN",
+      "NASDAQ"
+    ],
+    ["US11135F1012", "Broadcom Inc", 1.59466, "United States", "Technology", "AVGO", "NASDAQ"],
+    ["US30303M1027", "Meta Platforms Inc", 1.16567, "United States", "Technology", "META", "NASDAQ"]
+  ]
+}

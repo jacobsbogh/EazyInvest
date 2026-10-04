@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "instrumentId": "sparindex-global",
+  "fundIsin": "DK0060747822",
+  "source": "https://www.sparindex.dk/vores-fonde/index-globale-aktier-kl/",
+  "asOf": "2026-07-31",
+  "checkedAt": "2026-10-04",
+  "method": "reviewed-subset",
+  "reportedEquityWeight": null,
+  "rescaled": false,
+  "holdings": [
+    ["US67066G1040", "NVIDIA Corp", 4.32, "USA", "IT", "NVDA", "NASDAQ"],
+    ["US0378331005", "Apple Inc", 4.15, "USA", "IT", "AAPL", "NASDAQ"],
+    ["US5949181045", "Microsoft Corp", 3.16, "USA", "IT", "MSFT", "NASDAQ"],
+    ["US0231351067", "Amazon.com Inc", 2.44, "USA", "Forbrugsgoder", "AMZN", "NASDAQ"],
+    ["US11135F1012", "Broadcom Inc", 1.66, "USA", "IT", "AVGO", "NASDAQ"],
+    ["US30303M1027", "Meta Platforms Inc", 1.12, "USA", "Kommunikation", "META", "NASDAQ"]
+  ],
+  "identitySource": "https://www.ishares.com/uk/individual/en/products/251882/ishares-msci-world-ucits-etf-acc-fund"
+}

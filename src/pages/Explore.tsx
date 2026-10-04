@@ -312,6 +312,9 @@ export default function Explore() {
           )}
         </div>
         <div className="button-group">
+          <Link className="button secondary" to={`/holdings?investment=${selected}`}>
+            Review holdings
+          </Link>
           {fundFacts(item).cost && (
             <Link className="button secondary" to={`/compare-funds?investment=${selected}`}>
               Compare costs and tax

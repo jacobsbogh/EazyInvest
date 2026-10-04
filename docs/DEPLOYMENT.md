@@ -14,7 +14,7 @@ Published on 2026-10-04 at [EazyInvest](https://jacobsbogh.github.io/EazyInvest/
 - The actual HTTPS site passes desktop/mobile password-form, accessibility, and all seven demo-screen checks, with no browser errors.
 - The owner's direct sign-in/save/reload/sign-out check on the published site remains pending. Enter the password only on the site; automated checks do not use it.
 
-The free historical-data follow-up is documented in [the market-data runbook](MARKET_DATA.md). Recurring development automation remains inactive. The setup instructions below also serve as the runbook for recovery or publication.
+The free historical-data follow-up is published from app commit `70aeede`; [Pages publication](https://github.com/jacobsbogh/EazyInvest/actions/runs/37161948670) passed. The restricted writer, provider secret, deployed rules, verified import for five listings and weekday updates are configured; see [actual coverage and date ranges](MARKET_DATA.md). Novo B remains unavailable. Recurring development automation remains inactive. The setup instructions below also serve as the runbook for recovery or publication.
 
 ## Firebase and owner access
 

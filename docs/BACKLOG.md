@@ -3,7 +3,7 @@
 ## Release follow-up (owner-led)
 
 1. Confirm the owner's direct sign-in/save/reload/sign-out check on the [published first release](https://jacobsbogh.github.io/EazyInvest/). Dedicated email/password sign-in, Belgium Firestore on Spark, owner UID configuration, rules and Pages publication are complete. Automated emulator tests cover owner persistence and unrelated-account denial; see [release status](DEPLOYMENT.md). Do not upgrade billing.
-2. Connect and verify free historical data using [the market-data runbook](MARKET_DATA.md). Alpha Vantage monthly adjusted history, separate current quotes, ECB FX, a restricted writer and 20-year/full-history views are implemented. Report actual supported listings and date ranges after the first import. Research another free source for any unsupported listing; do not substitute a different venue, share class or ADR.
+2. Free historical data is connected and verified for VWCE, EUNL, IS3N, SXR8 and MSFT; see [the market-data runbook](MARKET_DATA.md). Monthly adjusted history, separate current quotes, ECB FX, a restricted writer and 20-year/full-history views are published. Find another free source for Novo B's exact Danish DKK listing; do not substitute a different venue, share class or ADR. Observe the first scheduled update.
 3. Keep GitHub Pages build variables and the authorized hostname in Firebase Auth current. Repository and CI are connected; publication is manual and subpath browser tests are implemented.
 4. Configure the desired scheduled development workflow, model, run budget, and review process. There is no existing schedule to modify.
 

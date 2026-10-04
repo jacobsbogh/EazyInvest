@@ -2,11 +2,27 @@
 
 The first real-data integration uses [Alpha Vantage](https://www.alphavantage.co/documentation/#monthlyadj) and [ECB reference FX](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html). It runs in GitHub Actions and writes only to the owner's private Firestore market cache. Firebase stays on Spark in Belgium.
 
+## Verified first import
+
+Verified on 2026-10-04. [The successful backfill](https://github.com/jacobsbogh/EazyInvest/actions/runs/37162573257) used job commit `d00a15a`. These are the provider's available listing histories, not fund inception dates.
+
+| Investment | First observation | Monthly observations |
+| ---------- | ----------------- | -------------------- |
+| VWCE       | 2019-08-30        | 87                   |
+| EUNL       | 2009-11-30        | 204                  |
+| IS3N       | 2014-07-31        | 148                  |
+| SXR8       | 2010-06-29        | 197                  |
+| MSFT       | 1999-12-31        | 323                  |
+
+All five histories, current quotes and ECB reference rates were observed through 2026-10-02 and passed the shared cache schema after storage. The current month's observation can be partial; it is dated at the latest available trading day. Novo B's exact Danish DKK listing was unavailable, so it remains missing. Do not substitute its US ADR. Another free Danish source remains a follow-up.
+
+The separate writer account and encrypted Actions credentials are configured. The owner UID and Spark plan were preserved. The app's historical views are [published](https://jacobsbogh.github.io/EazyInvest/) from app commit `70aeede`. [Full CI](https://github.com/jacobsbogh/EazyInvest/actions/runs/37162572323) and published desktop/mobile checks passed. Weekday updates are enabled with `MARKET_SYNC_ENABLED=true`; the first scheduled run remains to be observed.
+
 ## What is requested
 
 For each catalog instrument, `SYMBOL_SEARCH` must identify the exact candidate listing with matching region, trading currency, security type and issuer/name. German `.DEX` symbols identify Xetra in the provider documentation. A Copenhagen candidate is accepted only if its metadata matches the Danish DKK Novo B listing. No US ADR, Frankfurt alternative or different fund share class is substituted.
 
-`TIME_SERIES_MONTHLY_ADJUSTED` requests the full available history. The provider documents 25+ years, subject to the security's listing history and coverage. Stored observations retain their actual dates, raw closes and adjusted closes. `GLOBAL_QUOTE` supplies a separate latest end-of-day price for holdings valuation. There are no requests to premium daily-history or realtime endpoints. A provider paywall, unavailable listing or missing data never activates a purchase or generates prices.
+`TIME_SERIES_MONTHLY_ADJUSTED` requests the full available history. The provider documents 25+ years, subject to the security's listing history and coverage. Stored observations retain their actual dates, raw closes and adjusted closes, including a partial latest month when returned. `GLOBAL_QUOTE` supplies a separate latest end-of-day price for holdings valuation. There are no requests to premium daily-history or realtime endpoints. A provider paywall, unavailable listing or missing data never activates a purchase or generates prices.
 
 ECB quotes currencies per euro. The conversion is DKK/EUR for EUR, `(DKK/EUR) / (USD/EUR)` for USD, and 1 for DKK. Its reference date is stored separately. These are indicative valuation rates, not broker rates. Historical DKK returns are a later feature.
 

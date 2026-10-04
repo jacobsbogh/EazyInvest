@@ -90,7 +90,8 @@ async function main() {
     try {
       references = await fetchNasdaqReferences();
       console.log(`Nasdaq closing-session sample: ${references.size} Danish ISINs.`);
-    } catch {
+    } catch (error) {
+      if (error instanceof ProviderError && error.reason === 'quota') throw error;
       console.warn('Exchange trade reference unavailable; retained saved references.');
     }
     const credit = dailyAllowance(db);

@@ -41,6 +41,6 @@ Frontend/job builds and formatting passed. Automated verification passed 118 uni
 
 ## Release sequence
 
-The implementation can be reviewed and tested on its branch. Production activation requires deploying the matching Firestore rules and indexes, merging the code into `main`, running the market workflow, and publishing the matching Pages build. The schedule runs only from `main`. The existing writer account remains isolated from the owner's workspace. Pushing a branch does not deploy rules or publish the app.
+Source merging and production activation are separate. Before running the new market workflow, deploy the matching Firestore rules and indexes. After verifying the manual import, set `MARKET_DATA_VERSION=2` to enable the existing schedule and publish the matching Pages build. Scheduled imports run only from `main` with `MARKET_SYNC_ENABLED=true` and the version gate. The existing writer account remains isolated from the owner's workspace. Merging does not deploy rules or publish the app.
 
 Use the release commands in [the deployment runbook](DEPLOYMENT.md). After the first production sync, check the saved cache source, exact symbol, currency, dates and observation counts before publication. Free sources can change coverage; unavailable data must remain unavailable.

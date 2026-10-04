@@ -2,7 +2,7 @@
 
 GitHub Pages serves React, HashRouter and Recharts. Email/password sign-in identifies the dedicated owner account, created through the Firebase console. The app has no registration flow. The browser reads and saves a private Firestore workspace using a transaction. Demo mode uses separate localStorage.
 
-A GitHub Actions job fetches ESMA Danish listing references, free Yahoo history and quotes, Nasdaq reported-trade samples and ECB FX. It writes the private market cache using a separate restricted Firebase email/password account. The workflow is `.github/workflows/market-data.yml`; its schedule requires `MARKET_SYNC_ENABLED=true`. There are no Cloud Functions, Cloud Run services, Cloud Scheduler jobs, Secret Manager resources, or billing requirements.
+A GitHub Actions job fetches ESMA Danish listing references, free Yahoo history and quotes, Nasdaq reported-trade samples and ECB FX. It writes the private market cache using a separate restricted Firebase email/password account. The workflow is `.github/workflows/market-data.yml`; its schedule requires `MARKET_SYNC_ENABLED=true` and `MARKET_DATA_VERSION=2` after backend deployment and import verification. There are no Cloud Functions, Cloud Run services, Cloud Scheduler jobs, Secret Manager resources, or billing requirements.
 
 ## Permissions
 
@@ -44,7 +44,7 @@ It imports all mapped Danish listings and built-in references, prioritizes bound
 
 The job requires two Actions secrets: `MARKET_SYNC_EMAIL` and `MARKET_SYNC_PASSWORD`; `ALPHA_VANTAGE_API_KEY` is optional. Only the sync step receives them. Raw provider exceptions, URLs and response bodies are not logged. Public listing metadata is bundled; downloaded prices and secrets are never committed as artifacts.
 
-The Tuesday–Saturday schedule runs at 05:37 UTC only when `MARKET_SYNC_ENABLED=true`, after the previous trading day's close. Manual runs are available. GitHub may delay schedules or disable inactive public-repository schedules. The UI's refresh button reads the cache; it does not start a job or query the provider. History and current quotes remain separate so adjusted historical returns cannot replace current holdings prices.
+The Tuesday–Saturday schedule runs at 05:37 UTC only when `MARKET_SYNC_ENABLED=true` and `MARKET_DATA_VERSION=2`, after the previous trading day's close. Manual runs are available for bootstrap after backend deployment. GitHub may delay schedules or disable inactive public-repository schedules. The UI's refresh button reads the cache; it does not start a job or query the provider. History and current quotes remain separate so adjusted historical returns cannot replace current holdings prices.
 
 ## Code and verification
 

@@ -11,6 +11,7 @@ export async function requestAlpha(
   const url = new URL('https://www.alphavantage.co/query');
   url.search = new URLSearchParams({ ...parameters, apikey: apiKey }).toString();
   const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
+  if (response.status === 429) throw new ProviderError('quota');
   if (!response.ok) throw new ProviderError('unavailable');
   const body: unknown = await response.json();
   if (typeof body === 'object' && body !== null) {

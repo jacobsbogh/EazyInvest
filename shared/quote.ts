@@ -67,7 +67,8 @@ export function newerQuote(
   if (!previous) return candidate;
   if (!candidate) return previous;
   return candidate.quote.date > previous.quote.date ||
-    (candidate.quote.date === previous.quote.date && candidate.fetchedAt >= previous.fetchedAt)
+    (candidate.quote.date === previous.quote.date &&
+      Date.parse(candidate.fetchedAt) >= Date.parse(previous.fetchedAt))
     ? candidate
     : previous;
 }

@@ -13,7 +13,7 @@ The next milestone separates current pricing from historical research:
 4. Verify quote-only portfolio valuation, unchanged adjusted historical returns,
    writer isolation, on-demand reads, comparison loading, failures and sign-out.
 
-All four steps are complete on the review branch. The app reads paginated
+All four implementation steps are complete. The app reads paginated
 `marketQuotes` records after sign-in and reads no full histories on the dashboard
 or portfolio. Explore loads its selection/comparisons; Strategies loads only the
 draft and selected alternative allocations. Reads are deduplicated within a login
@@ -45,8 +45,8 @@ illiquid shares keep their actual last-trade date when checked again.
 
 ## Source verification and activation
 
-Verification passed: 134 unit tests, 12 backend integration tests, 17 security-rule
-tests, 26 desktop/mobile demo browser tests and 12 signed-in browser tests (201
+Verification passed: 135 unit tests, 12 backend integration tests, 17 security-rule
+tests, 26 desktop/mobile demo browser tests and 12 signed-in browser tests (202
 total). The signed-in tests monitor Firestore requests: dashboard and portfolio
 read zero histories, Explore reads only selected/comparison histories, and changing
 analysis controls reuses loaded data. Missing history remains retryable explicitly.
@@ -59,6 +59,11 @@ actual quote dates 2026-10-02. The ignored metadata-only result is
 Implementation and production activation are separate. Matching rules, quote-cache
 bootstrap, import and Pages publication must be completed before release. Firebase
 remains on Spark; provider requests run only in the restricted market job.
+
+Merging source does not publish Pages. Scheduled imports require both
+`MARKET_SYNC_ENABLED=true` and `MARKET_DATA_VERSION=2`; leave the version unset
+until matching rules/indexes are deployed and the manual import is verified.
+Manual import remains available on `main` to bootstrap the new cache after deployment.
 
 Bootstrap `marketQuotes` before publishing the new app, including quotes needed
 for existing holdings/watchlists. The app intentionally does not download all

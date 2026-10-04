@@ -10,6 +10,7 @@ import {
 } from '../../shared/quote';
 import { parseYahooQuote, fetchYahooQuote } from '../../jobs/src/yahoo';
 import { ProviderError } from '../../jobs/src/alpha-vantage';
+import { requestAlpha } from '../../jobs/src/alpha-client';
 import { HistoryLoader } from '../../src/lib/history-loader';
 import { demoMarket } from '../../src/lib/demo';
 import { portfolio } from '../../shared/finance';
@@ -120,7 +121,26 @@ describe('independent current quotes', () => {
       fxToDkk: 7.47,
     };
     expect(mergeQuotes(previous, [checkedAgain])).toEqual({ ...previous, eunl: checkedAgain });
+    const fractionalSecond = { ...checkedAgain, fetchedAt: '2026-10-04T13:00:00.500Z' };
+    expect(mergeQuotes({ eunl: checkedAgain }, [fractionalSecond]).eunl).toEqual(fractionalSecond);
+    expect(mergeQuotes({ eunl: fractionalSecond }, [checkedAgain]).eunl).toEqual(fractionalSecond);
     expect(mergeQuotes(previous, [])).toEqual(previous);
+  });
+  it('stops the optional fallback on HTTP throttling without reading or retrying the response', async () => {
+    const response = new Response('Rate limited', { status: 429 });
+    const read = vi.spyOn(response, 'json');
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+    const credit = vi.fn().mockResolvedValue(undefined);
+    try {
+      await expect(
+        requestAlpha('synthetic-test-key', credit, { function: 'GLOBAL_QUOTE' }),
+      ).rejects.toMatchObject({ reason: 'quota' });
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(credit).toHaveBeenCalledTimes(1);
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
   it('accepts a bounded chart without historical arrays and rejects substituted/future provider metadata', async () => {
     expect(parseYahooQuote(response(), getInstrument('novo'), [], now)).toEqual(quote());

@@ -3,7 +3,7 @@
 ## Release follow-up (owner-led)
 
 1. Confirm the owner's direct sign-in/save/reload/sign-out check on the [published first release](https://jacobsbogh.github.io/EazyInvest/). Dedicated email/password sign-in, Belgium Firestore on Spark, owner UID configuration, rules and Pages publication are complete. Automated emulator tests cover owner persistence and unrelated-account denial; see [release status](DEPLOYMENT.md). Do not upgrade billing.
-2. Free historical data is published for VWCE, EUNL, IS3N, SXR8 and MSFT. The broader free Yahoo/Nasdaq implementation covers the exact Novo B listing and 146 Danish shares; four domestic funds and four additional UCITS ETFs are verified on the review branch. Deploy matching rules, merge, import and publish after production authorization, then observe the first scheduled update. See [the market-data runbook](MARKET_DATA.md) and [fund expansion](FUND_EXPANSION.md).
+2. Free historical data is published for VWCE, EUNL, IS3N, SXR8 and MSFT. The broader free Yahoo/Nasdaq implementation covers the exact Novo B listing and 146 Danish shares; four domestic funds and four additional UCITS ETFs are verified. Source merging is separate from activation: deploy matching rules, import, enable the version-gated schedule and publish after production authorization, then observe the first scheduled update. See [the market-data runbook](MARKET_DATA.md) and [fund expansion](FUND_EXPANSION.md).
 3. Keep GitHub Pages build variables and the authorized hostname in Firebase Auth current. Repository and CI are connected; publication is manual and subpath browser tests are implemented.
 4. Configure the desired scheduled development workflow, model, run budget, and review process. There is no existing schedule to modify.
 
@@ -45,4 +45,4 @@ facts and Nasdaq cancellation handling. See [fund expansion](FUND_EXPANSION.md).
 Performance/freshness: paginated lightweight quotes for dashboard/portfolio,
 session-scoped on-demand Explore/strategy histories, independent daily raw quotes
 and weekly adjusted history, explicit retries and stale observation dates.
-Implementation remains on the review branch; see [verification/activation](DATA_PERFORMANCE.md).
+Production activation remains pending; see [verification/activation](DATA_PERFORMANCE.md).

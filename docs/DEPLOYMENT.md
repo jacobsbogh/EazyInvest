@@ -69,7 +69,7 @@ The workflow is `.github/workflows/market-data.yml`. Follow [the market-data run
 5. Deploy the Firestore rules and run **Refresh market data** manually. Verify supported exact listings, historical ranges, price dates and FX dates. Unsupported prices remain missing or retain their previous data.
 6. Set the Actions variable `MARKET_SYNC_ENABLED=true` to enable Tuesday–Saturday updates at 05:37 UTC (06:37 Danish winter time / 07:37 summer time), after the previous weekday's close. GitHub can delay runs and disable public-repository schedules after 60 inactive days.
 
-The job can only read/write catalog prices, never personal records. It checks all six instruments, reuses caches younger than 20 hours, and makes at most 18 provider requests/run with thirteen-second spacing. Manual reruns share the free daily allowance. Provider data stays in Firestore, never the public repository. The app's refresh button reads that cache.
+The job can maintain listing definitions, private search/history queues, its request budget and market caches, never personal records. It maintains the six references plus requested listings, reuses caches younger than 20 hours, and shares a persistent 25-request UTC-day cap across all runs, with thirteen-second spacing. Provider data stays in Firestore, never the public repository. The app's refresh button reads that cache. Deploy both rules and the declared queue indexes before publishing the strategy release.
 
 ## Release checks and references
 

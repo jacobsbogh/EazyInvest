@@ -1,7 +1,10 @@
 import { z } from 'zod';
+import { instrumentKeySchema, instrumentSchema } from './instrument.js';
+import { instruments } from './catalog.js';
+import { strategySchema } from './strategy.js';
 
 export const instrumentIds = ['vwce', 'eunl', 'is3n', 'sxr8', 'novo', 'msft'] as const;
-export const instrumentIdSchema = z.enum(instrumentIds);
+export const instrumentIdSchema = instrumentKeySchema;
 const money = z.number().finite().min(0).max(100_000_000);
 export const planSchema = z.object({
   initial: money,
@@ -38,20 +41,72 @@ export const transactionSchema = z
 export const watchSchema = z
   .object({ instrumentId: instrumentIdSchema, note: z.string().max(2000) })
   .strict();
-export const workspaceSchema = z
+const currentWorkspaceSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(3),
+    customInstruments: z.array(instrumentSchema).max(100),
+    strategies: z.array(strategySchema).max(10),
+    preferredStrategyId: z.string().nullable(),
     name: z.string().trim().min(1).max(60),
     plan: planSchema,
     transactions: z.array(transactionSchema).max(500),
-    watchlist: z.array(watchSchema).max(6),
+    watchlist: z.array(watchSchema).max(30),
     completedLessons: z
       .array(
         z.enum(['starting', 'compounding', 'diversification', 'costs', 'danish-tax', 'behavior']),
       )
       .max(6),
   })
-  .strict();
+  .strict()
+  .superRefine((data, context) => {
+    const known = new Set(instruments.map((item) => item.id));
+    for (const item of data.customInstruments) {
+      if (known.has(item.id))
+        context.addIssue({ code: 'custom', message: 'Duplicate investment definition.' });
+      known.add(item.id);
+    }
+    if (
+      [
+        ...data.transactions,
+        ...data.watchlist,
+        ...data.strategies.flatMap((s) => s.allocations),
+      ].some((entry) => !known.has(entry.instrumentId))
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'Unknown investment. Add its catalog definition first.',
+      });
+    if (new Set(data.strategies.map((s) => s.id)).size !== data.strategies.length)
+      context.addIssue({ code: 'custom', message: 'Strategy IDs must be unique.' });
+    if (
+      data.preferredStrategyId !== null &&
+      !data.strategies.some((s) => s.id === data.preferredStrategyId)
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'The preferred strategy must be saved in this workspace.',
+      });
+  });
+export const workspaceSchema = z.preprocess((input) => {
+  if (typeof input === 'object' && input !== null && 'version' in input) {
+    if (
+      input.version === 1 &&
+      !('customInstruments' in input) &&
+      !('strategies' in input) &&
+      !('preferredStrategyId' in input)
+    )
+      return {
+        ...input,
+        version: 3,
+        customInstruments: [],
+        strategies: [],
+        preferredStrategyId: null,
+      };
+    if (input.version === 2 && !('strategies' in input) && !('preferredStrategyId' in input))
+      return { ...input, version: 3, strategies: [], preferredStrategyId: null };
+  }
+  return input;
+}, currentWorkspaceSchema);
 export const storedSchema = z.object({
   revision: z.number().int().nonnegative(),
   data: workspaceSchema,

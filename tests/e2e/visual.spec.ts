@@ -7,7 +7,16 @@ test('all screens render without errors and fit the viewport', async ({ page }, 
   await page.goto('/');
   await page.screenshot({ path: testInfo.outputPath('welcome.png'), fullPage: true });
   await page.getByRole('button', { name: 'Explore the demo' }).click();
-  for (const path of ['/', '/planner', '/explore', '/portfolio', '/learn', '/tax', '/settings']) {
+  for (const path of [
+    '/',
+    '/planner',
+    '/explore',
+    '/strategies',
+    '/portfolio',
+    '/learn',
+    '/tax',
+    '/settings',
+  ]) {
     await page.goto(`/#${path}`);
     await expect(page.locator('#main-content h1')).toBeVisible();
     await expect

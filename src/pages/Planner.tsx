@@ -143,7 +143,7 @@ export default function Planner() {
                 type="number"
                 min="0"
                 max="5"
-                step="0.05"
+                step="0.000001"
                 value={plan.fee}
                 onChange={(e) => change('fee', Math.min(5, Math.max(0, Number(e.target.value))))}
               />

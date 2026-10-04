@@ -9,7 +9,16 @@ import {
   logout,
   fetchMarket,
   loadCachedMarket,
+  fetchRegistry,
+  fetchHistoryRequests,
+  requestHistory,
 } from './firebase';
+import {
+  instruments as referenceInstruments,
+  getInstrument as resolveInstrument,
+  type Instrument,
+} from '../../shared/catalog';
+import type { HistoryRequest } from '../../shared/discovery';
 import { demoWorkspace, emptyWorkspace, demoMarket } from './demo';
 import { parseWorkspace } from '../../shared/schema';
 import type { Workspace, InstrumentId, MarketSeries } from '../../shared/schema';
@@ -24,6 +33,11 @@ type AppContextValue = {
   notice: string;
   market: Partial<Record<InstrumentId, MarketSeries>>;
   refreshing: boolean;
+  instruments: Instrument[];
+  getInstrument: (id: string) => Instrument;
+  historyRequests: Record<string, HistoryRequest>;
+  queueHistory: (id: string) => Promise<void>;
+  addDiscovered: (items: Instrument[]) => void;
   enterDemo: () => void;
   leave: () => Promise<void>;
   update: (next: Workspace | ((old: Workspace) => Workspace)) => Promise<boolean>;
@@ -46,6 +60,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [notice, setNotice] = useState('');
   const [market, setMarket] = useState<Partial<Record<InstrumentId, MarketSeries>>>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [discovered, setDiscovered] = useState<Instrument[]>([]);
+  const [historyRequests, setHistoryRequests] = useState<Record<string, HistoryRequest>>({});
+  const instruments = [
+    ...new Map(
+      [...referenceInstruments, ...discovered, ...data.customInstruments].map((item) => [
+        item.id,
+        item,
+      ]),
+    ).values(),
+  ];
   function replace(next: Workspace) {
     dataRef.current = next;
     setData(next);
@@ -76,6 +100,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async (user) => {
       const session = ++sessionRef.current;
       setMarket({});
+      setDiscovered([]);
+      setHistoryRequests({});
       replace(emptyWorkspace());
       if (!user) {
         setStatus('signed-out');
@@ -91,9 +117,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setStatus('ready');
         setError('');
         try {
-          const cached = await loadCachedMarket();
-          if (session === sessionRef.current)
+          const registry = await fetchRegistry().catch(() => []);
+          const catalog = [
+            ...new Map(
+              [...referenceInstruments, ...registry, ...(stored?.data.customInstruments ?? [])].map(
+                (item) => [item.id, item],
+              ),
+            ).values(),
+          ];
+          const cached = await loadCachedMarket(catalog);
+          const requests = await fetchHistoryRequests(catalog.map((item) => item.id));
+          if (session === sessionRef.current) {
+            setDiscovered(registry);
             setMarket(Object.fromEntries(cached.map((item) => [item.instrumentId, item])));
+            setHistoryRequests(
+              Object.fromEntries(requests.map((item) => [item.instrumentId, item])),
+            );
+          }
         } catch {
           if (session === sessionRef.current)
             setNotice('Your workspace loaded, but cached market data is unavailable.');
@@ -120,7 +160,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSaving(true);
     const session = sessionRef.current;
     try {
-      const parsed = parseWorkspace(typeof next === 'function' ? next(dataRef.current) : next);
+      const candidate = typeof next === 'function' ? next(dataRef.current) : next;
+      const needed = new Set(
+        [
+          ...candidate.watchlist,
+          ...candidate.transactions,
+          ...candidate.strategies.flatMap((s) => s.allocations),
+        ].map((item) => item.instrumentId),
+      );
+      const parsed = parseWorkspace({
+        ...candidate,
+        customInstruments: [
+          ...candidate.customInstruments,
+          ...instruments.filter(
+            (item) =>
+              needed.has(item.id) &&
+              !referenceInstruments.some((entry) => entry.id === item.id) &&
+              !candidate.customInstruments.some((entry) => entry.id === item.id),
+          ),
+        ],
+      });
       if (mode === 'demo') {
         localStorage.setItem(storageKey, JSON.stringify(parsed));
         replace(parsed);
@@ -159,13 +218,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       for (const id of unique) {
         try {
-          const result = await fetchMarket(id);
+          const result = await fetchMarket(id, instruments);
           if (session === sessionRef.current)
             setMarket((previous) => ({ ...previous, [id]: result }));
         } catch {
           failed++;
         }
       }
+      const requests = await fetchHistoryRequests(unique);
+      if (session === sessionRef.current)
+        setHistoryRequests((old) => ({
+          ...old,
+          ...Object.fromEntries(requests.map((item) => [item.instrumentId, item])),
+        }));
       setNotice(
         failed
           ? `${failed} instrument(s) have no available update. Existing data is retained. Check the market-data workflow on GitHub.`
@@ -177,11 +242,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setRefreshing(false);
     }
   }
+  async function queueHistory(id: string) {
+    if (mode === 'demo') {
+      setNotice('History requests are available in your signed-in workspace.');
+      return;
+    }
+    const session = sessionRef.current;
+    try {
+      const request = await requestHistory(id);
+      if (session === sessionRef.current) {
+        setHistoryRequests((old) => ({ ...old, [id]: request }));
+        setNotice('History queued for the next data update.');
+      }
+    } catch (err) {
+      setNotice(friendlyError(err));
+    }
+  }
   async function leave() {
     sessionRef.current++;
     await logout();
     replace(emptyWorkspace());
     setMarket({});
+    setDiscovered([]);
+    setHistoryRequests({});
     setStatus('signed-out');
   }
   return (
@@ -195,6 +278,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         notice,
         market,
         refreshing,
+        instruments,
+        getInstrument: (id) => resolveInstrument(id, instruments),
+        historyRequests,
+        queueHistory,
+        addDiscovered: (items) =>
+          setDiscovered((old) => [
+            ...new Map([...old, ...items].map((item) => [item.id, item])).values(),
+          ]),
         enterDemo,
         leave,
         update,

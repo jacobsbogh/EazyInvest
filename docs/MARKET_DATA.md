@@ -34,7 +34,27 @@ ECB quotes currencies per euro. The conversion is DKK/EUR for EUR, `(DKK/EUR) / 
 4. Set repository variable `MARKET_SYNC_ENABLED=true` after the first import is verified. The workflow is present at `.github/workflows/market-data.yml`. Its Tuesday–Saturday 05:37 UTC schedule follows the previous weekday's closing prices. GitHub may delay or disable inactive public-repository schedules.
 5. Sign in to the app, open Explore and press **Refresh data** to read the saved cache. The app never calls the provider or starts the workflow.
 
-The current free provider limit is [25 requests per day](https://www.alphavantage.co/premium/). A run makes at most 18 requests, spaced by thirteen seconds, plus one free ECB request. Supported recent caches are reused; existing valid recent histories can acquire dated FX without consuming Alpha Vantage credits or changing their price retrieval timestamp. Unsupported listings cost a search request and remain missing. Provider limit responses stop the run; other invalid responses retain the prior cache. Manual retries share the same daily allowance and do not reset it. Workflows are serialized and time-limited.
+The free provider limit is [25 requests per day](https://www.alphavantage.co/support/). A private Firestore budget reserves each request before sending it, sharing a 25-request UTC-day cap across scheduled and manual runs, with thirteen-second spacing. Failed attempts count. Provider quota responses stop further calls even when the local counter has room. Supported recent caches are reused; recent histories can acquire dated FX without consuming provider credits or changing their price retrieval timestamp. Unsupported listings remain missing. Other invalid responses retain prior caches. Workflows are serialized and time-limited.
+
+## Search and requested histories
+
+The initial catalog contains 25 listing definitions; inclusion does not imply price
+coverage. Local name/ticker/ISIN search is immediate. **Search markets** saves a
+private request, and the scheduled job processes up to three queued searches with
+the free `SYMBOL_SEARCH` endpoint. Supported results are limited to USD US shares,
+EUR Xetra listings and DKK Copenhagen listings with matching security types.
+Provider results do not invent ISINs or claim an exact US venue when metadata only
+identifies the US market.
+
+**Request history** queues a verified registry listing. The job processes up to
+two requested histories ahead of reference updates, prioritizing pending entries.
+Ready requests rotate by their last check, subject to cache age and the shared
+budget. Searches run first (at most three credits) so growing price queues do not
+starve discovery; the six references follow requested histories. Queues can span
+several runs; unavailable listings remain explicitly
+unavailable. Deploy `firestore:rules,firestore:indexes` before using these queues.
+The writer can maintain registry/queue/budget/cache documents but cannot read the
+owner's strategies or ledger. App refresh loads saved data and request status.
 
 The owner account, market cache and provider key remain private. Only public Firebase web configuration belongs in `VITE_` build variables. Do not commit quotes, financial backups, account emails, passwords or provider keys. The source is for private individual analysis under [Alpha Vantage's personal-use terms](https://www.alphavantage.co/terms_of_service/), not redistribution of the fetched dataset.
 

@@ -64,7 +64,9 @@ test('owner signs in, saves to Firestore, reloads, and signs out on a Pages subp
   await signIn(page, ownerEmail);
   await expect(page.getByRole('heading', { name: 'Your future starts here.' })).toBeVisible();
   await expect(page.locator('.demo-banner')).toHaveCount(0);
-  await page.getByRole('link', { name: 'Settings & data' }).click();
+  // The emulator's bottom warning overlays low sidebar controls; keyboard
+  // activation follows the actual link without removing that warning.
+  await page.getByRole('link', { name: 'Settings & data' }).press('Enter');
   await page.getByLabel('Workspace name').fill('My private browser test');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('status')).toContainText('Workspace name saved');
@@ -222,4 +224,117 @@ test('dated DKK returns feed holding statistics and monthly saving without chang
       nodes: violation.nodes.map((node) => node.target),
     })),
   ).toEqual([]);
+});
+
+test('owner saves a real-data strategy, compares identical budgets and reloads the preferred choice', async ({
+  page,
+}) => {
+  const db = getFirestore(admin);
+  for (const [id, rates] of [
+    ['eunl', [6, 7, 8]],
+    ['sxr8', [6, 6, 6]],
+  ] as const) {
+    await db.doc(`market/${id}`).set({
+      instrumentId: id,
+      currency: 'EUR',
+      source: 'Alpha Vantage',
+      providerSymbol: `${id.toUpperCase()}.DEX`,
+      frequency: 'monthly',
+      adjustment: 'splits-and-dividends',
+      fetchedAt: '2026-10-04T10:00:00.000Z',
+      fxToDkk: 8,
+      fxDate: '2026-10-02',
+      fxSource: 'ECB',
+      quote: { date: '2026-10-02', close: 999 },
+      points: rates.map((fxToDkk, i) => {
+        const date = new Date(Date.UTC(2025, i + 1, 0)).toISOString().slice(0, 10);
+        return { date, close: 100, adjustedClose: 100, fxToDkk, fxDate: date };
+      }),
+    });
+  }
+  await signIn(page, ownerEmail);
+  await expect(page.getByRole('heading', { name: 'Your future starts here.' })).toBeVisible();
+  await page.goto('./#/strategies');
+  await page.getByLabel('Strategy name', { exact: true }).fill('Cloud developed markets');
+  await page.getByLabel('Investment 1', { exact: true }).selectOption('eunl');
+  await page.getByLabel('Strategy starting money (DKK)').fill('0');
+  await page.getByLabel('Strategy monthly contribution (DKK)').fill('2000');
+  await page.getByLabel('Why this strategy?').fill('A saved research decision.');
+  await expect(page.locator('.strategy-outcomes')).toContainText('6.952');
+  await page.getByRole('button', { name: 'Save strategy', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Investment strategy saved');
+  await page.getByRole('button', { name: 'New strategy', exact: true }).click();
+  await page.getByLabel('Strategy name', { exact: true }).fill('Cloud two-fund strategy');
+  await page.getByLabel('Investment 1', { exact: true }).selectOption('eunl');
+  await page.getByLabel('Strategy starting money (DKK)').fill('0');
+  await page.getByLabel('Strategy monthly contribution (DKK)').fill('1000');
+  await page.getByRole('button', { name: 'Add investment', exact: true }).click();
+  await page.getByLabel('Investment 2', { exact: true }).selectOption('sxr8');
+  await page.getByLabel('Allocation 1 (%)').fill('50');
+  await page.getByLabel('Allocation 2 (%)').fill('50');
+  await expect(page.locator('.strategy-outcomes')).toContainText('3.238');
+  await page.getByRole('button', { name: 'Save strategy', exact: true }).click();
+  await page.getByRole('button', { name: 'Make preferred', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Preferred strategy saved');
+  await page
+    .getByLabel('Compare with saved strategy')
+    .selectOption({ label: 'Cloud developed markets' });
+  await expect(page.locator('.strategy-outcome')).toHaveCount(2);
+  await expect(page.locator('.strategy-outcome').nth(1)).toContainText('3.476');
+  const stored = (await db.doc(`users/${ownerUid}/workspace/current`).get()).data()!;
+  expect(stored.data.version).toBe(3);
+  expect(stored.data.strategies).toHaveLength(2);
+  await page.reload();
+  await expect(page.getByLabel('Strategy name', { exact: true })).toHaveValue(
+    'Cloud two-fund strategy',
+  );
+  await page.goto('./#/');
+  await expect(page.locator('.preferred-strategy')).toContainText('Cloud two-fund strategy');
+});
+
+test('owner queues market search and history without sending provider credentials to the browser', async ({
+  page,
+}) => {
+  await signIn(page, ownerEmail);
+  await expect(page.getByRole('heading', { name: 'Your future starts here.' })).toBeVisible();
+  await page.goto('./#/explore');
+  await page.getByLabel('Search investments').fill('IBM');
+  await page.getByRole('button', { name: 'Search markets', exact: true }).click();
+  await expect(page.getByText(/“ibm” is queued/)).toBeVisible();
+  const request = (await getFirestore(admin).collection('discoveryRequests').get()).docs.find(
+    (d) => d.data().query === 'ibm',
+  )!;
+  const item = {
+    id: 'av-ibm',
+    name: 'International Business Machines',
+    shortName: 'IBM',
+    ticker: 'IBM',
+    exchange: 'US',
+    currency: 'USD',
+    kind: 'Stock',
+    region: 'United States',
+    description: 'Emulated listing',
+    isin: '',
+    source: 'https://www.alphavantage.co/documentation/',
+    sourceKind: 'provider',
+    providerSymbol: 'IBM',
+    color: '#396d6c',
+  };
+  await getFirestore(admin).doc('instrumentRegistry/av-ibm').set(item);
+  await request.ref.set({
+    ...request.data(),
+    status: 'ready',
+    completedAt: new Date().toISOString(),
+    results: [item],
+  });
+  await page.getByRole('button', { name: 'Check search results' }).click();
+  await page.getByRole('button', { name: 'IBM · IBM · US · USD', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'IBM: history coverage' })).toBeVisible();
+  await page.getByRole('button', { name: 'Request history', exact: true }).click();
+  await expect(
+    page.getByText('History is queued. Check after the next scheduled data update.'),
+  ).toBeVisible();
+  expect((await getFirestore(admin).doc('marketRequests/av-ibm').get()).data()?.status).toBe(
+    'pending',
+  );
 });

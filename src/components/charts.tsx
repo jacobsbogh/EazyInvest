@@ -14,6 +14,66 @@ import type { Plan } from '../../shared/schema';
 import { scenarios } from '../../shared/finance';
 import { money, number } from '../lib/format';
 const grid = '#e8ebe3';
+export function StrategyChart({
+  results,
+  names,
+}: {
+  results: import('../../shared/portfolio-history').StrategyResult[];
+  names: string[];
+}) {
+  const data = results[0].points.map((p, i) => ({
+    date: p.month,
+    cash: p.contributed,
+    first: p.value,
+    second: results[1]?.points[i].value,
+  }));
+  return (
+    <div
+      className="chart"
+      role="img"
+      aria-label="Historical portfolio values in DKK compared with contributions held as cash at zero interest"
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 16, right: 8, left: 4, bottom: 0 }}>
+          <CartesianGrid stroke={grid} vertical={false} />
+          <XAxis dataKey="date" minTickGap={45} tick={{ fontSize: 11 }} />
+          <YAxis
+            width={65}
+            tickFormatter={(v) => `${number(v / 1000, 0)}k`}
+            tick={{ fontSize: 11 }}
+          />
+          <Tooltip formatter={(v) => money(Number(v))} />
+          <Line
+            dataKey="first"
+            name={names[0]}
+            stroke="#3e6950"
+            strokeWidth={2.5}
+            dot={false}
+            isAnimationActive={false}
+          />
+          {results[1] && (
+            <Line
+              dataKey="second"
+              name={names[1]}
+              stroke="#506579"
+              strokeWidth={2.5}
+              dot={false}
+              isAnimationActive={false}
+            />
+          )}
+          <Line
+            dataKey="cash"
+            name="Contributions / cash at 0%"
+            stroke="#777769"
+            strokeDasharray="4 4"
+            dot={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 export function ProjectionChart({ plan, crash = false }: { plan: Plan; crash?: boolean }) {
   const data = scenarios(plan, crash);
   return (

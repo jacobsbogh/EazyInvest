@@ -5,6 +5,8 @@ import { instrumentIds, marketSchema } from '../../shared/schema.js';
 import { getInstrument } from '../../shared/catalog.js';
 import { fetchAlphaSeries, ProviderError } from './alpha-vantage.js';
 import { fetchEcbHistory, withHistoricalFx } from './ecb.js';
+import { dailyAllowance } from './budget.js';
+import { seedRegistry, processRequests } from './requests.js';
 
 async function main() {
   const required = [
@@ -28,8 +30,6 @@ async function main() {
   const db = getFirestore(app);
   let failed = 0;
   let updated = 0;
-  let lastRequest = 0;
-  let requests = 0;
   try {
     await signInWithEmailAndPassword(
       auth,
@@ -38,6 +38,34 @@ async function main() {
     );
     const fxHistory = await fetchEcbHistory();
     const fx = fxHistory.at(-1)!;
+    const credit = dailyAllowance(db);
+    const fetchSeries = async (item: Parameters<typeof fetchAlphaSeries>[0]) =>
+      withHistoricalFx(
+        await fetchAlphaSeries(item, process.env.ALPHA_VANTAGE_API_KEY!, fx, credit),
+        fxHistory,
+      );
+    await seedRegistry(db);
+    // Bound discovery to three credits before history/reference updates so new
+    // searches cannot be indefinitely starved by a growing price catalog.
+    const searches = await processRequests(
+      db,
+      process.env.ALPHA_VANTAGE_API_KEY!,
+      credit,
+      fetchSeries,
+      'search',
+    );
+    failed += searches.failed;
+    if (searches.quota) return;
+    // Owner-requested history receives priority over routine cache refreshes.
+    const requested = await processRequests(
+      db,
+      process.env.ALPHA_VANTAGE_API_KEY!,
+      credit,
+      fetchSeries,
+      'history',
+    );
+    failed += requested.failed;
+    if (requested.quota) return;
     for (const id of instrumentIds) {
       try {
         const ref = doc(db, 'market', id);
@@ -64,13 +92,7 @@ async function main() {
           getInstrument(id),
           process.env.ALPHA_VANTAGE_API_KEY!,
           fx,
-          async () => {
-            if (++requests > 18) throw new ProviderError('quota');
-            await new Promise((resolve) =>
-              setTimeout(resolve, Math.max(0, 13000 - (Date.now() - lastRequest))),
-            );
-            lastRequest = Date.now();
-          },
+          credit,
         );
         const series = withHistoricalFx(fetched, fxHistory);
         await setDoc(ref, series);
@@ -85,15 +107,15 @@ async function main() {
           );
           continue;
         }
+        if (error instanceof ProviderError && error.reason === 'quota') {
+          console.log('Free daily allowance used; remaining updates deferred.');
+          return;
+        }
         failed++;
         // Never print provider URLs, credential-bearing errors, or response bodies.
         console.error(
           `${id}: update failed; prior cache retained. Check coverage and writer permissions.`,
         );
-        if (error instanceof ProviderError && error.reason === 'quota') {
-          console.error('Provider allowance unavailable; stopping without further requests.');
-          break;
-        }
       }
     }
   } finally {

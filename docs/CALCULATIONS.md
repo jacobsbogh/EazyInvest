@@ -60,8 +60,47 @@ Rolling 5/10/20-year returns require respectively 61/121/241 consecutive complet
 
 ## Historical monthly saving
 
+Saved portfolio strategies extend the same month-close timing to multiple
+allocations; their specification follows this single-investment section.
+
 The simulator uses full available DKK observations, independently of the chart's currency/range/comparisons. Its selected start and end months must have completed observations, and every intermediate month must be present. The current UTC month is excluded. Start/end dates show the actual observed closes.
 
 The initial investment and first monthly contribution enter at the first selected close. At each later close, multiply the existing balance by the ratio of current to previous DKK return-series values, then add that month's fixed DKK contribution. This assumes fractional exposure. For three adjusted closes of 100 with historical FX 6, 7 and 8, three DKK 1,000 deposits finish at `1000 × 8/6 + 1000 × 8/7 + 1000 = 3476.19`; contributions are DKK 3,000 and gain is DKK 476.19.
 
 Provider adjusted values account for splits and dividend reinvestment; price-only history excludes dividends. Values are nominal DKK before personal tax, dealing fees and currency-conversion charges. Fund expenses reflected in observed prices remain embedded. The simulation writes no portfolio transactions. It accepts contributions up to DKK 1 million/month and an initial investment up to DKK 100 million; nonfinite or balances above the supported safe-number limit are rejected. It is a replay of historical returns, not a forecast or broker execution model.
+
+## Saved portfolio strategies
+
+`shared/portfolio-history.ts` matches completed calendar months across every
+investment in both selected strategies. Real portfolios require adjusted return
+data and dated DKK FX; demos use generated, labelled price examples. Comparison
+months use calendar month-end labels, while original trading/reference dates stay
+in the underlying cache. Every intermediate month must exist; missing funds, FX,
+gaps or a common range shorter than two months produce no comparison.
+
+Initial money and the first monthly deposit are allocated at the first close by
+target weights. Each later month grows each holding by its own DKK return ratio,
+then allocates the fixed nominal deposit by target weights. Contribution-only
+allocation lets existing weights drift. Annual rebalancing resets all balances to
+target weights after the December deposit. Trades, tax and conversion costs are
+excluded; fractional exposure and dividend reinvestment are assumed.
+
+Both strategies receive the primary strategy's initial and monthly budget over the
+same start/end months, even when the alternative's saved budget differs. The cash
+baseline equals cumulative deposits at 0% interest. Results distinguish deposits,
+ending value and gain, without writing ledger entries.
+
+The investment index starts at 100. Before each new deposit, multiply it by the
+ratio of grown holdings to the prior month's closing invested balance. This
+removes external contributions from returns while preserving their effect on
+allocation drift. Drawdown uses this index rather than deposit-inflated account
+value. Recovery is the elapsed month count from the peak preceding the deepest
+observed fall until that index regains its peak; otherwise it is unrecovered at
+period end. Worst month is the smallest observed monthly investment return.
+
+Holding-period statistics analyze this strategy's observed index path, not
+independently restarted portfolios for every rolling start. No historical return
+is copied into a future expected-return input. Budgets, goals, selected tax model
+and verified weighted fund charges can be carried deliberately into the planner.
+Unknown costs retain the planner's existing explicit fee assumption. See
+[fund-fact provenance and tax limits](FUND_FACTS.md).

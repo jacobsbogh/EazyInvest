@@ -11,6 +11,10 @@ A GitHub Actions job fetches free Alpha Vantage monthly adjusted history and cur
 | `config/access`                      | Denied              | Denied              | Denied        |
 | `users/{ownerUid}/workspace/current` | Get, create, update | Denied              | Denied        |
 | `market/{catalogId}`                 | Get                 | Get, create, update | Denied        |
+| `instrumentRegistry/{id}`            | Get, bounded list   | Get/list/write      | Denied        |
+| `discoveryRequests/{hash}`           | Get, queue request  | Bounded list/update | Denied        |
+| `marketRequests/{id}`                | Get, queue request  | Bounded list/update | Denied        |
+| `marketSync/budget`                  | Denied              | Get/create/update   | Denied        |
 | Lists, deletes and other paths       | Denied              | Denied              | Denied        |
 
 The privileged Firebase console maintains `config/access`, containing `ownerUid` and optionally `marketWriterUid`. Use separate accounts. Missing configuration fails closed. No writer is needed until prices are connected.
@@ -19,7 +23,13 @@ The privileged Firebase console maintains `config/access`, containing `ownerUid`
 
 `src/lib/cloud.ts` validates the full workspace, including ledger chronology, overselling, duplicate IDs, real dates and a 750 KB serialized size limit. A Firestore transaction compares the expected revision and commits the next revision with the data. Stale saves fail rather than overwrite newer data.
 
-Firestore rules independently enforce ownership, exact top-level fields, plan types/bounds, collection limits and sequential revisions. Rules do **not** perform complete per-entry ledger validation or recompute holdings. The owner could bypass the client using a custom client and corrupt their own data. Other users cannot access it; malformed loaded records fail validation. This is the explicit tradeoff for a single-owner Spark app.
+Firestore rules independently enforce ownership, exact top-level fields, plan types/bounds, collection limits and sequential revisions. Rules do **not** perform complete per-entry ledger/strategy validation or recompute holdings. The owner could bypass the client using a custom client and corrupt their own data. Other users cannot access it; malformed loaded records fail validation. This is the explicit tradeoff for a single-owner Spark app.
+
+Workspace version 3 adds custom listing definitions, up to ten strategies and a
+nullable preferred strategy ID. Version 1/2 workspaces and JSON backups migrate in
+memory; the next explicit save stores version 3. Allocations are unique, contain up
+to five known investments and sum to 100%. Referenced discovered definitions are
+included in the saved workspace so reload and backups retain their identity.
 
 Cloud saves require connectivity and never fall back to demo storage. Firestore caches cloud data in memory only; Auth persists the login session. Sign-out clears application data. Demo records are never uploaded automatically.
 
@@ -29,7 +39,7 @@ Cloud saves require connectivity and never fall back to demo storage. Firestore 
 
 Historical FX is stored with each observed close and validated as a reference date on or before that close, at most seven calendar days earlier. The current FX and quote stay separate. `shared/historical-series.ts` supplies native or DKK observations to comparisons, `shared/history-analysis.ts` and `shared/savings-simulation.ts`. The latter two use full selected-investment history independently of chart comparisons; rolling windows and monthly saving exclude the current partial UTC month. Legacy caches can omit historical FX and remain available for native-currency analysis.
 
-It checks all six catalog IDs, skips valid caches younger than 20 hours, and makes at most 18 provider requests/run with thirteen-second spacing. ECB is fetched once per run. GitHub concurrency serializes runs. Unsupported listings and failed instruments retain previous data; quota responses stop further requests. These are per-run limits, not a shared daily provider budget or a guarantee of free coverage. Manual reruns can consume additional credits for uncached instruments. See [the market-data runbook](MARKET_DATA.md).
+It maintains the six references and bounded owner-requested queues, skipping valid caches younger than 20 hours. Each provider attempt reserves credit transactionally in `marketSync/budget`; all runs share 25 requests per UTC day, with thirteen-second spacing. ECB is fetched once per run. GitHub concurrency serializes runs. Unsupported listings and failed instruments retain previous data; quota responses defer remaining work. These limits do not guarantee coverage. See [the market-data runbook](MARKET_DATA.md).
 
 The job receives three Actions secrets: `MARKET_SYNC_EMAIL`, `MARKET_SYNC_PASSWORD`, and `ALPHA_VANTAGE_API_KEY`. Only the sync step receives them. Raw provider exceptions, URLs and response bodies are not logged. No data or secrets are committed as artifacts.
 

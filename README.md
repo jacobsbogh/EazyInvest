@@ -21,15 +21,18 @@ Without `.env.local`, choose **Explore the demo**. Generated example prices and 
 
 - Dashboard with goal, watchlist, learning progress and long-term projections.
 - A 1–40 year planner with contributions, fees, inflation, tax illustrations, alternate assumptions, a market shock, table and CSV export.
-- Six reference investments, search/filter, comparisons, watchlists and research notes.
+- A starting catalog of 25 listings, local name/ticker/ISIN search, queued free-source discovery and history requests, watchlists and research notes.
 - DKK buy/sell/dividend ledger with average purchase cost, historical transaction FX, gains, reviewed CSV imports and JSON backups.
 - Six investing lessons and 2026 Danish tax calculators with official SKAT sources.
 - Email/password owner sign-in, private Firestore transactions, revision conflict protection and responsive layouts.
 - Historical analysis in DKK or trading currency, with 1/3/5/10/20-year and full-history views, dated ECB FX, annualized and calendar-year returns, and rolling 5/10/20-year holding periods.
 - Historical monthly saving in DKK, with selectable dates and separate contributions, investment value and gain/loss.
+- Saved investment strategies with up to five allocations, goals and research notes; matching-budget historical DKK portfolio comparisons, annual rebalancing, drawdown/recovery and a cash baseline.
+- A preferred strategy on the dashboard and an explicit budget/cost handoff to the future planner.
+- Dated issuer costs for the four reference ETFs and a reviewed, year-specific official SKAT list snapshot matched by exact ISIN.
 - Free GitHub Actions market job: credentials remain in Actions secrets, and a restricted writer cannot read your portfolio.
 
-The catalog is a starting universe, not a buy list. Fund classification and SKAT positivliste membership are explicitly unverified. Alpha Vantage history uses provider closes adjusted for splits/dividends; current holdings use separate unadjusted quotes. Monthly sampling can miss larger falls between observations. Each fund/listing has its own available history. Free coverage is checked against the exact symbol, venue, currency and security type; unsupported listings remain missing.
+The catalog is a starting universe, not a buy list. Coverage remains specific to each listing. Fund facts show dated issuer sources and exact ISIN membership in the reviewed 2026 SKAT list; absent, missing or conflicting information is disclosed. Membership alone does not establish suitability or account eligibility. Alpha Vantage history uses provider closes adjusted for splits/dividends; current holdings use separate unadjusted quotes. Monthly sampling can miss larger falls between observations. Each fund/listing has its own available history. Free coverage is checked against the exact symbol, venue, currency and security type; unsupported listings remain missing.
 
 Gains are before tax. Sales/dividends leave the investment ledger; there is no broker cash balance. The app cannot execute trades. Broker integration, pensions, corporate investing, tax filing, splits/transfers and withholding-tax reconciliation are outside this version. See [calculation assumptions](docs/CALCULATIONS.md).
 
@@ -37,7 +40,7 @@ Gains are before tax. Sales/dividends leave the investment ledger; there is no b
 
 The owner saves via Firestore transactions. Rules enforce ownership, field/plan bounds, collection limits and consecutive revisions. Client validation checks detailed ledger semantics and a 750 KB payload limit. An owner using a custom client could corrupt their own records; rules do not recompute the entire ledger. Unauthorized users cannot access it, and invalid loaded data is rejected. See [architecture](docs/ARCHITECTURE.md).
 
-The market job checks six catalog instruments, requests their complete available monthly history, reuses recent caches and makes at most 18 provider requests/run with thirteen-second spacing. ECB FX is fetched once per run. Refreshing in the app loads the private saved cache. No paid endpoint, public price artifact or Firebase billing upgrade is required.
+The market job maintains the six reference instruments and processes bounded owner-requested listing/history queues. A persistent budget limits all runs together to 25 provider requests per UTC day, with thirteen-second spacing. It requests full available monthly history and reuses recent caches. ECB FX is fetched once per run. Refreshing in the app loads the private saved cache. No paid endpoint, public price artifact or Firebase billing upgrade is required. See [the strategy implementation plan](docs/STRATEGY_MILESTONE.md) and [fund-fact provenance](docs/FUND_FACTS.md).
 
 Pages assets and this repository are public; Auth and rules protect financial records. Never put personal records, provider keys or passwords in source or public `VITE_` configuration.
 

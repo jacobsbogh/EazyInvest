@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Instrument } from '../../shared/catalog.js';
 import { dateSchema, marketSchema } from '../../shared/schema.js';
 import type { FxRates } from './ecb.js';
+import { listingSymbol } from './listings.js';
 
 const positiveString = z
   .string()
@@ -25,8 +26,20 @@ export class ProviderError extends Error {
 }
 
 export function validateListing(input: unknown, instrument: Instrument) {
-  if (!Object.hasOwn(candidates, instrument.id)) throw new ProviderError('coverage');
-  const candidate = candidates[instrument.id as keyof typeof candidates];
+  const symbol = listingSymbol(instrument);
+  if (!symbol) throw new ProviderError('coverage');
+  const candidate = Object.hasOwn(candidates, instrument.id)
+    ? candidates[instrument.id as keyof typeof candidates]
+    : {
+        symbol,
+        region:
+          instrument.currency === 'USD'
+            ? 'United States'
+            : instrument.currency === 'DKK'
+              ? 'Denmark'
+              : 'Germany',
+        words: [instrument.name.toUpperCase().match(/[A-Z0-9]+/)?.[0] ?? instrument.ticker],
+      };
   const response = z
     .object({
       bestMatches: z.array(

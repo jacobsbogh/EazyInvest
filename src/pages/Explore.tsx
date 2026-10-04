@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search, Star, ArrowUpRight, RefreshCw } from 'lucide-react';
 import { useApp } from '../lib/store';
-import { instruments, getInstrument } from '../../shared/catalog';
+import { MarketSearch } from '../components/MarketSearch';
+import { FundFacts } from '../components/FundFacts';
 import type { InstrumentId } from '../../shared/schema';
 import { maxDrawdown } from '../../shared/finance';
 import { historicalComparison, latestQuote } from '../../shared/market';
@@ -14,9 +15,23 @@ import { PriceChart } from '../components/charts';
 import { date, number, percent } from '../lib/format';
 
 export default function Explore() {
-  const { data, market, mode, update, saving, notify, refreshMarket, refreshing } = useApp();
+  const {
+    data,
+    market,
+    mode,
+    update,
+    saving,
+    notify,
+    refreshMarket,
+    refreshing,
+    instruments,
+    getInstrument,
+    historyRequests,
+    queueHistory,
+  } = useApp();
   const [params] = useSearchParams();
   const requested = params.get('investment');
+  const [targetStrategy, setTargetStrategy] = useState(params.get('strategy') ?? '');
   const [selected, setSelected] = useState<InstrumentId>(
     instruments.find((i) => i.id === requested)?.id ?? 'vwce',
   );
@@ -72,7 +87,7 @@ export default function Explore() {
       <PageHeading
         eyebrow="CURIOSITY IS A GOOD START"
         title="Get to know your options."
-        description="Explore a starter universe of investments. Compare their behavior and keep notes."
+        description="Find a listing, check its history and build your investment strategy."
         action={
           <button
             className="button secondary"
@@ -145,7 +160,9 @@ export default function Explore() {
                           </span>
                         </button>
                       </td>
-                      <td>{i.region}</td>
+                      <td>
+                        {i.exchange} · {i.currency}
+                      </td>
                       <td>{price ? `${number(price.close)} ${i.currency}` : 'Not loaded'}</td>
                       <td className="muted">{price ? date(price.date) : '—'}</td>
                       <td>
@@ -167,14 +184,86 @@ export default function Explore() {
           </div>
         ) : (
           <Empty title="No investments found">
-            Try another search or filter. This starter catalog contains six investments.
+            Try another name, ticker or ISIN, or search the supported markets below.
           </Empty>
+        )}
+        {query.trim().length >= 2 && (
+          <MarketSearch
+            query={query}
+            choose={(investment) => {
+              choose(investment.id);
+              setQuery('');
+            }}
+          />
         )}
         <div className="table-footnote">
           A research starting point, not a recommended portfolio. Fund overlap and concentration
           matter.
         </div>
       </section>
+      <section className="card coverage-card">
+        <div>
+          <h2>{item.ticker}: history coverage</h2>
+          <p>
+            {series
+              ? `${mode === 'demo' ? 'Generated sample' : 'Saved provider'} history: ${series.points[0].date} to ${series.points.at(-1)!.date}.`
+              : historyRequests[selected]?.status === 'pending'
+                ? 'History is queued. Check after the next scheduled data update.'
+                : historyRequests[selected]?.status === 'unavailable'
+                  ? 'The free source does not support this exact listing.'
+                  : 'Historical data has not been requested for this listing.'}
+          </p>
+          <p className="text-small muted">
+            {item.isin || 'ISIN not verified'} · {item.exchange} · {item.currency}
+          </p>
+        </div>
+        <div className="button-group">
+          {!series && (
+            <button
+              className="button secondary"
+              disabled={mode === 'demo' || historyRequests[selected]?.status === 'pending'}
+              onClick={() => void queueHistory(selected)}
+            >
+              Request history
+            </button>
+          )}
+          <Link className="button primary" to={`/strategies?investment=${selected}`}>
+            Build a strategy
+          </Link>
+        </div>
+      </section>
+      {data.strategies.length > 0 && (
+        <section className="card coverage-card">
+          <Field label="Add investment to saved strategy">
+            <select value={targetStrategy} onChange={(e) => setTargetStrategy(e.target.value)}>
+              <option value="">Choose a strategy</option>
+              {data.strategies
+                .filter(
+                  (s) =>
+                    s.allocations.length < 5 ||
+                    s.allocations.some((a) => a.instrumentId === selected),
+                )
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+            </select>
+          </Field>
+          {data.strategies.some(
+            (s) =>
+              s.id === targetStrategy &&
+              (s.allocations.length < 5 || s.allocations.some((a) => a.instrumentId === selected)),
+          ) && (
+            <Link
+              className="button secondary"
+              to={`/strategies?strategy=${targetStrategy}&investment=${selected}`}
+            >
+              Use this investment
+            </Link>
+          )}
+        </section>
+      )}
       <div className="explore-detail-grid">
         <section className="card">
           <div className="section-heading">
@@ -372,7 +461,7 @@ export default function Explore() {
               </div>
               <div>
                 <dt>ISIN</dt>
-                <dd className="mono">{item.isin}</dd>
+                <dd className="mono">{item.isin || 'Not verified'}</dd>
               </div>
               <div>
                 <dt>Danish tax status</dt>
@@ -381,13 +470,15 @@ export default function Explore() {
                 </dd>
               </div>
             </dl>
+            <FundFacts item={item} />
             <p className="text-small muted">
               Confirm current costs, the fund’s key information document, and Danish tax
               classification before investing. Trading currency does not describe all underlying
               currency exposure.
             </p>
             <a className="text-link" href={item.source} target="_blank" rel="noreferrer">
-              Visit the issuer <ArrowUpRight size={15} />
+              {item.sourceKind === 'provider' ? 'View listing source' : 'Visit the issuer'}{' '}
+              <ArrowUpRight size={15} />
             </a>
           </section>
           <section className="card">

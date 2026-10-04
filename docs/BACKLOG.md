@@ -10,21 +10,28 @@
 ## Highest-value product improvements
 
 - Research separately labelled market benchmarks for periods predating the catalog ETFs. Never extend a fund's history with another investment's data.
-- Add a year-versioned importer for the official SKAT equity-investment-company list with exact ISIN matching, provenance, a review step, and a status for missing/unverified data. Membership is not a recommendation.
+- Maintain issuer-cost checks and reviewed SKAT snapshots for new years/listings; see [fund-fact provenance](FUND_FACTS.md). Add a capital-income projection only after documenting its assumptions and inputs.
 - Add transaction editing with the same complete-ledger validation as import and deletion, plus an audit trail.
 - Add dated portfolio snapshots and clearly distinguish deposits/withdrawals from performance. Define the cash-account model before implementing time-weighted or money-weighted returns.
 - Support additional broker CSV formats only with representative sanitized fixtures and explicit mappings.
-- Add verified fund costs, geographic/sector exposure, and holdings overlap from issuer/provider sources with update timestamps.
+- Add verified geographic/sector exposure and holdings overlap from issuer/provider sources with update timestamps.
 
 ## Longer-term research
 
 - Test a stochastic scenario engine against a written distribution and correlation model before displaying probabilities. Include sensitivity and model limitations.
 - Add pension account models only after documenting their contribution/withdrawal rules and tax treatment. Current app is personal taxable/ASK investing.
 - Add account-specific tax-loss pools and foreign withholding reconciliation if accurate inputs can be obtained. Do not present the current illustration as a tax filing service.
-- Broader catalog search, additional data providers, offline read-only snapshots, and Danish-language copy.
+- Additional free data providers, offline read-only snapshots, and Danish-language copy.
 
 ## Implemented in the initial build
 
 Dashboard; deterministic planner; ASK and share-income illustrations; catalog and comparisons; watchlist notes; validated DKK ledger; CSV and JSON backups; six lessons; responsive layouts; email/password sign-in; Spark Firestore transactions and revision rules; isolated market-writer implementation; optional GitHub Actions price-update template; unit/rule/browser tests; CI and manual Pages publication.
 
 Historical analysis extensions: dated ECB FX and DKK/trading-currency views; full-history annualized and calendar-year returns; completed rolling 5/10/20-year holding periods; historical monthly saving with separate contributions and gains. Independent numerical fixtures and combined currency/UI tests cover the calculations.
+
+Strategy milestone: 25 starting listing definitions; queued free-market discovery
+and requested histories with a persistent daily budget; saved multi-investment
+allocations, notes and preferred choice; matching-budget DKK backtests with annual
+rebalancing, cash baseline and deposit-adjusted drawdown/recovery; dashboard and
+planner connections; issuer charges and an exact-ISIN reviewed 2026 SKAT snapshot.
+See [implementation and verification](STRATEGY_MILESTONE.md).

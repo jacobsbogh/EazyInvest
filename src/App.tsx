@@ -27,11 +27,13 @@ import Portfolio from './pages/Portfolio';
 import Learn from './pages/Learn';
 import Tax from './pages/Tax';
 import Settings from './pages/Settings';
+import Strategies from './pages/Strategies';
 
 const nav = [
   ['/', 'Overview', LayoutDashboard],
   ['/planner', 'Future planner', BarChart3],
   ['/explore', 'Explore investments', Telescope],
+  ['/strategies', 'Investment strategies', SlidersHorizontal],
   ['/portfolio', 'My portfolio', Wallet],
   ['/learn', 'Learn to invest', BookOpen],
   ['/tax', 'Investing in Denmark', Landmark],
@@ -346,6 +348,7 @@ export default function App() {
             <Route path="/" element={<Overview />} />
             <Route path="/planner" element={<Planner />} />
             <Route path="/explore" element={<Explore />} />
+            <Route path="/strategies" element={<Strategies />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/learn" element={<Learn />} />
             <Route path="/tax" element={<Tax />} />

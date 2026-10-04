@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import { instruments } from '../../shared/catalog';
+import { instruments, type Instrument } from '../../shared/catalog';
 import { transactionSchema, validateLedger } from '../../shared/schema';
 import type { Transaction } from '../../shared/schema';
 const headers = [
@@ -32,7 +32,11 @@ export function exportTransactions(transactions: Transaction[]) {
     { escapeFormulae: true },
   );
 }
-export function importTransactions(csv: string, existing: Transaction[]): Transaction[] {
+export function importTransactions(
+  csv: string,
+  existing: Transaction[],
+  catalog: Instrument[] = instruments,
+): Transaction[] {
   if (csv.length > 1_000_000)
     throw new Error('This file is too large. Import up to 500 transactions at a time.');
   const result = Papa.parse<Record<string, string>>(csv, {
@@ -54,11 +58,11 @@ export function importTransactions(csv: string, existing: Transaction[]): Transa
   if (result.data.length + existing.length > 500)
     throw new Error('A workspace supports at most 500 transactions.');
   const parsed = result.data.map((row, index) => {
-    const instrument = instruments.find(
+    const instrument = catalog.find(
       (i) =>
         i.id === row.instrument.trim().toLowerCase() ||
         i.ticker.toLowerCase() === row.instrument.trim().toLowerCase() ||
-        i.isin === row.instrument.trim(),
+        (i.isin !== '' && i.isin === row.instrument.trim()),
     );
     const requiredNumbers = ['quantity', 'price', 'fx_to_dkk', 'fees_dkk'];
     if (requiredNumbers.some((key) => row[key]?.trim() === ''))

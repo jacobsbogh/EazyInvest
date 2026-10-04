@@ -9,7 +9,7 @@ import {
   quoteSchema,
 } from '../../shared/quote';
 import { parseYahooQuote, fetchYahooQuote } from '../../jobs/src/yahoo';
-import { ProviderError } from '../../jobs/src/alpha-vantage';
+import { ProviderError, fetchAlphaSeries } from '../../jobs/src/alpha-vantage';
 import { requestAlpha } from '../../jobs/src/alpha-client';
 import { HistoryLoader } from '../../src/lib/history-loader';
 import { demoMarket } from '../../src/lib/demo';
@@ -132,12 +132,23 @@ describe('independent current quotes', () => {
     const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
     const credit = vi.fn().mockResolvedValue(undefined);
     try {
-      await expect(
-        requestAlpha('synthetic-test-key', credit, { function: 'GLOBAL_QUOTE' }),
-      ).rejects.toMatchObject({ reason: 'quota' });
-      expect(fetch).toHaveBeenCalledTimes(1);
-      expect(credit).toHaveBeenCalledTimes(1);
-      expect(read).not.toHaveBeenCalled();
+      for (const request of [
+        () => requestAlpha('synthetic-test-key', credit, { function: 'GLOBAL_QUOTE' }),
+        () =>
+          fetchAlphaSeries(
+            getInstrument('msft'),
+            'synthetic-test-key',
+            { date: '2026-10-02', DKK: 1, EUR: 7.46, USD: 6 },
+            credit,
+          ),
+      ]) {
+        fetch.mockClear();
+        credit.mockClear();
+        await expect(request()).rejects.toMatchObject({ reason: 'quota' });
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(credit).toHaveBeenCalledTimes(1);
+        expect(read).not.toHaveBeenCalled();
+      }
     } finally {
       vi.restoreAllMocks();
     }

@@ -56,9 +56,9 @@ Novo B, Microsoft and the EUR Copenhagen Ress Life listing: **11/11 passed**, wi
 actual quote dates 2026-10-02. The ignored metadata-only result is
 `.cache/current-quote-verification.json`; no downloaded prices are committed.
 
-Implementation and production activation are separate. Matching rules, quote-cache
-bootstrap, import and Pages publication must be completed before release. Firebase
-remains on Spark; provider requests run only in the restricted market job.
+Matching rules, quote-cache bootstrap, import and Pages publication are complete;
+see [production verification](PRODUCTION_RELEASE.md). Firebase remains on Spark;
+provider requests run only in the restricted market job.
 
 Merging source does not publish Pages. Scheduled imports require both
 `MARKET_SYNC_ENABLED=true` and `MARKET_DATA_VERSION=2`; leave the version unset

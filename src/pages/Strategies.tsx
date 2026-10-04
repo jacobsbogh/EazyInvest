@@ -176,16 +176,21 @@ export default function Strategies() {
         title="Build your investment strategy."
         description="Allocate your budget, compare real historical outcomes and save your reasoning."
         action={
-          <button
-            className="button secondary"
-            onClick={() => {
-              setDraft(create());
-              setCompareId('');
-            }}
-            disabled={saving || data.strategies.length >= 10}
-          >
-            New strategy
-          </button>
+          <div className="button-group">
+            <Link className="button secondary" to="/compare-funds">
+              Compare fund costs and tax
+            </Link>
+            <button
+              className="button secondary"
+              onClick={() => {
+                setDraft(create());
+                setCompareId('');
+              }}
+              disabled={saving || data.strategies.length >= 10}
+            >
+              New strategy
+            </button>
+          </div>
         }
       />
       {data.strategies.length > 0 && (

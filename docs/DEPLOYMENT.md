@@ -18,6 +18,11 @@ The free historical-data follow-up is published from app commit `70aeede`; [Page
 
 ## Firebase and owner access
 
+The broadened catalog, on-demand history and lightweight-quote release is now
+active from reviewed commit `8b7873d`; the matching backend, 178-quote bootstrap,
+schedule and Pages publication are recorded in [production verification](PRODUCTION_RELEASE.md).
+This supersedes the earlier Novo-coverage limitation above.
+
 1. In [Firestore](https://console.firebase.google.com/project/eazyinvest-c3887/firestore), use the default database in **production mode**, Standard edition, `europe-west1` (Belgium). Inspect the existing database first; create it only if absent. Location is a lasting choice.
 2. Enable **Email/Password** under [Authentication providers](https://console.firebase.google.com/project/eazyinvest-c3887/authentication/providers), with email-link sign-in disabled. Create a dedicated owner account through Authentication → Users if one does not exist. Disable Google sign-in. Enter the app password only in Firebase's account form or the app's sign-in form.
 3. In Authentication → Settings → Authorized domains, add `jacobsbogh.github.io`. For local use add both `localhost` and `127.0.0.1`; Vite uses the latter.

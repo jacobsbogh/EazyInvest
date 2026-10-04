@@ -1,6 +1,6 @@
 # Danish index funds and additional UCITS ETFs
 
-Implemented and verified; production activation remains pending. The
+Implemented, verified and activated; see [production verification](PRODUCTION_RELEASE.md). The
 catalog now contains 178 listings: 146 Danish ordinary-share listings, four Danish
 index funds, eight UCITS ETFs and twenty US shares. This is a research catalog,
 not a recommendation or proof of broker/account availability.

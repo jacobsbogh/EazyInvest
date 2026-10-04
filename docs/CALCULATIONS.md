@@ -117,3 +117,25 @@ The weighted strategy fee is annual ongoing charges/TER only. Fund transaction
 estimates, maximum entry/exit charges and broker/FX costs are disclosed separately.
 Unknown investment-company fund costs make the weighted aggregate unavailable;
 the planner retains its explicit fee input rather than substituting zero.
+
+## Fund comparison with distribution cash flows
+
+The separate `/compare-funds` screen uses `shared/fund-comparison.ts`; it does not
+alter historical analysis, saved workspace schemas or the general planner's guards.
+See [verified rules and full scenario contract](FUND_COMPARISON.md).
+
+Independent fixture: DKK 100,000, 10% gross total return, zero charges and a 5%
+year-end-value distribution produce DKK 5,500 gross payout and DKK 1,485 tax.
+Reinvesting DKK 4,015 leaves fund value DKK 108,515 and acquisition cost DKK 104,015.
+A hypothetical sale adds DKK 1,215 tax, leaving DKK 107,300. Holding the net payout
+as cash gives the same first-year total but different subsequent compounding.
+Distributions are removed from total-return value once, never added as extra return.
+
+Ordinary sale gains and distributions share the final year's progressive bands.
+A loss can reverse only that year's modelled tax; unused losses are reported for
+future years. Annual-tax models use total account growth less gross deposits,
+including distributions once, and carry losses before charging subsequent gains.
+ASK room includes retained inside cash; excess planned money stays outside at 0%.
+Hypothetical chart sales never reduce subsequent holdings. Optional maximum exit
+costs apply only to these terminal sales; internal annual-tax redemptions have no
+separate execution charge. All monetary outputs use nominal future DKK.

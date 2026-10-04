@@ -901,6 +901,67 @@ textarea:focus-visible {
   gap: 23px;
   align-items: start;
 }
+.fund-comparison-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 18px;
+}
+.fund-comparison > * {
+  min-width: 0;
+}
+.fund-comparison .plan-controls > h2,
+.fund-comparison .plan-controls > p {
+  grid-column: 1 / -1;
+}
+.fund-comparison caption {
+  white-space: normal;
+  text-align: left;
+  padding: 10px 0;
+}
+.fund-comparison-option {
+  min-width: 0;
+}
+.fund-comparison-option > .eyebrow,
+.fund-comparison-option > details {
+  margin-bottom: 16px;
+}
+.fund-comparison-option summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+.fund-comparison-total {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 20px 0;
+}
+.fund-comparison-total strong {
+  font-size: 25px;
+  color: #3e6950;
+}
+.fund-comparison-total small {
+  color: #606656;
+}
+.fund-comparison-breakdown {
+  font-size: 12px;
+  margin: 0 0 20px;
+}
+.fund-comparison-breakdown > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #e8ebe3;
+}
+.fund-comparison-breakdown dt {
+  color: #606656;
+}
+.fund-comparison-breakdown dd {
+  margin: 0;
+  text-align: right;
+  flex-shrink: 0;
+}
 .plan-controls {
   position: sticky;
   top: 20px;

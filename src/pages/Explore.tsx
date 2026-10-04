@@ -16,6 +16,7 @@ import { date, number, percent } from '../lib/format';
 import { danishCatalogDate } from '../../shared/catalog';
 import { historyIsStale, ecbHistoryStart } from '../../shared/market-policy';
 import { currentQuote, quoteIsStale } from '../../shared/quote';
+import { fundFacts } from '../../shared/fund-facts';
 
 export default function Explore() {
   const {
@@ -311,6 +312,11 @@ export default function Explore() {
           )}
         </div>
         <div className="button-group">
+          {fundFacts(item).cost && (
+            <Link className="button secondary" to={`/compare-funds?investment=${selected}`}>
+              Compare costs and tax
+            </Link>
+          )}
           {!series && (
             <button
               className="button secondary"

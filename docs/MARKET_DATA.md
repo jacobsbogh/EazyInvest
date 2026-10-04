@@ -8,7 +8,7 @@ provenance and independently checked free-history ranges. The official ESMA shar
 refresh only retires ordinary shares; it preserves issuer-managed fund definitions.
 Run `node jobs/lib/jobs/src/verify-market.js --funds` after `npm run build:jobs` to
 check the eight additions without accessing Firebase. Production activation of the
-broadened catalog and fund expansion remains pending.
+broadened catalog and fund expansion is complete; see [release verification](PRODUCTION_RELEASE.md).
 
 ## Configure the restricted writer
 

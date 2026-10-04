@@ -32,8 +32,8 @@ export function MarketSearch({
     <div className="market-search">
       <div className="market-search-action">
         <p className="muted text-small">
-          Looking for another listing? Search US shares, Xetra ETFs and Danish shares where the free
-          provider has coverage.
+          Danish listings are already searchable above. Search markets to discover additional US
+          shares.
         </p>
         <button
           className="button secondary"

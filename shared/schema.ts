@@ -90,6 +90,36 @@ const currentWorkspaceSchema = z
 export const workspaceSchema = z.preprocess((input) => {
   if (typeof input === 'object' && input !== null && 'version' in input) {
     if (
+      input.version === 3 &&
+      'customInstruments' in input &&
+      Array.isArray(input.customInstruments)
+    ) {
+      // A previously discovered listing may enter a later built-in snapshot.
+      // Retain conflicting definitions for validation; remove only exact identity
+      // duplicates so saved strategies and backups survive catalogue updates.
+      return {
+        ...input,
+        customInstruments: input.customInstruments.filter((custom: unknown) => {
+          if (
+            typeof custom !== 'object' ||
+            custom === null ||
+            !('id' in custom) ||
+            !('isin' in custom) ||
+            !('currency' in custom)
+          )
+            return true;
+          if (!instrumentSchema.safeParse(custom).success) return true;
+          return !instruments.some(
+            (item) =>
+              item.id === custom.id &&
+              item.isin !== '' &&
+              item.isin === custom.isin &&
+              item.currency === custom.currency,
+          );
+        }),
+      };
+    }
+    if (
       input.version === 1 &&
       !('customInstruments' in input) &&
       !('strategies' in input) &&
@@ -140,7 +170,7 @@ export const marketSchema = z
   .object({
     instrumentId: instrumentIdSchema,
     currency: z.enum(['EUR', 'USD', 'DKK']),
-    source: z.enum(['demo', 'Twelve Data', 'Alpha Vantage']),
+    source: z.enum(['demo', 'Twelve Data', 'Alpha Vantage', 'Yahoo Finance']),
     fetchedAt: z.string().datetime(),
     fxToDkk: z.number().finite().positive(),
     fxDate: dateSchema,
@@ -148,6 +178,18 @@ export const marketSchema = z
     frequency: z.literal('monthly').optional(),
     adjustment: z.literal('splits-and-dividends').optional(),
     providerSymbol: z.string().min(1).max(40).optional(),
+    closeAdjustment: z.literal('splits').optional(),
+    reportedTrade: z
+      .object({
+        source: z.literal('Nasdaq Nordic'),
+        dateTime: z.string().datetime(),
+        close: z.number().finite().positive(),
+        isin: z.string().regex(/^[A-Z]{2}[A-Z0-9]{9}\d$/),
+        mic: z.enum(['XCSE', 'DSME', 'FNDK']),
+        reportFile: z.string().regex(/^NordicEquity-posttrade-\d{4}-\d{2}-\d{2}T\d{4}$/),
+        fetchedAt: z.string().datetime(),
+      })
+      .optional(),
     quote: z.object({ date: dateSchema, close: z.number().finite().positive() }).optional(),
     fxSource: z.literal('ECB').optional(),
   })
@@ -163,7 +205,7 @@ export const marketSchema = z
     if (series.points.some((point, i) => i > 0 && point.date <= series.points[i - 1].date))
       context.addIssue({ code: 'custom', message: 'Market dates must be unique and ascending.' });
     if (
-      series.source === 'Alpha Vantage' &&
+      (series.source === 'Alpha Vantage' || series.source === 'Yahoo Finance') &&
       (!series.providerSymbol ||
         series.frequency !== 'monthly' ||
         series.adjustment !== 'splits-and-dividends' ||
@@ -172,12 +214,24 @@ export const marketSchema = z
         series.points.some((point) => point.adjustedClose === undefined) ||
         new Set(series.points.map((point) => point.date.slice(0, 7))).size !==
           series.points.length ||
-        (series.quote && series.quote.date < series.points.at(-1)!.date))
+        (series.source === 'Alpha Vantage' &&
+          series.quote &&
+          series.quote.date < series.points.at(-1)!.date))
     )
       context.addIssue({
         code: 'custom',
         message: 'Adjusted monthly data requires provenance and a separate current quote.',
       });
+    if (series.source === 'Yahoo Finance' && series.closeAdjustment !== 'splits')
+      context.addIssue({
+        code: 'custom',
+        message: 'Yahoo close prices must be labelled split-adjusted.',
+      });
+    if (
+      series.reportedTrade &&
+      (series.currency !== 'DKK' || series.reportedTrade.dateTime > series.reportedTrade.fetchedAt)
+    )
+      context.addIssue({ code: 'custom', message: 'Invalid Danish exchange trade reference.' });
   });
 export type Plan = z.infer<typeof planSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;

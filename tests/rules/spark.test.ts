@@ -42,6 +42,58 @@ afterAll(async () => {
   await env?.cleanup();
 });
 describe('Spark owner and market-writer boundaries', () => {
+  it('accepts exact free Danish histories and official trade references while rejecting substitutions and owner writes', async () => {
+    const writer = env.authenticatedContext('writer').firestore();
+    const owner = env.authenticatedContext('owner').firestore();
+    const item = {
+      ...getInstrument('novo'),
+      providerSymbol: 'NOVO-B.CPH',
+      yahooSymbol: 'NOVO-B.CO',
+    };
+    await assertSucceeds(setDoc(doc(writer, 'instrumentRegistry/novo'), item));
+    const series = {
+      ...demoMarket().novo,
+      source: 'Yahoo Finance',
+      frequency: 'monthly',
+      adjustment: 'splits-and-dividends',
+      closeAdjustment: 'splits',
+      providerSymbol: 'NOVO-B.CO',
+      fxSource: 'ECB',
+      quote: { date: '2026-10-02', close: 300 },
+      reportedTrade: {
+        source: 'Nasdaq Nordic',
+        dateTime: '2026-10-02T14:55:00.000Z',
+        close: 301,
+        isin: item.isin,
+        mic: 'XCSE',
+        reportFile: 'NordicEquity-posttrade-2026-10-02T1655',
+        fetchedAt: '2026-10-04T12:00:00.000Z',
+      },
+    };
+    await assertSucceeds(setDoc(doc(writer, 'market/novo'), series));
+    for (const change of [
+      { providerSymbol: 'NVO' },
+      { providerSymbol: 'NOVO-A.CO' },
+      { closeAdjustment: 'none' },
+      { currency: 'USD' },
+      { reportedTrade: { ...series.reportedTrade, isin: 'DK0010244425' } },
+      { reportedTrade: { ...series.reportedTrade, mic: 'DSME' } },
+    ])
+      await assertFails(setDoc(doc(writer, 'market/novo'), { ...series, ...change }));
+    await assertFails(setDoc(doc(owner, 'market/novo'), series));
+    await assertFails(getDoc(doc(writer, 'users/owner/workspace/current')));
+    const eurItem = getInstrument('dk-dk0060315604');
+    await assertSucceeds(setDoc(doc(writer, 'instrumentRegistry', eurItem.id), eurItem));
+    const { reportedTrade: _trade, ...eurSeries } = series;
+    await assertSucceeds(
+      setDoc(doc(writer, 'market', eurItem.id), {
+        ...eurSeries,
+        instrumentId: eurItem.id,
+        currency: 'EUR',
+        providerSymbol: 'RLAINV.CO',
+      }),
+    );
+  });
   it('allows owner reads and a sequential workspace update', async () => {
     const db = env.authenticatedContext('owner').firestore();
     await assertSucceeds(getDoc(doc(db, 'users/owner/workspace/current')));

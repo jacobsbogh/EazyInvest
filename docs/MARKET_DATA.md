@@ -1,73 +1,28 @@
-# Free historical market data
+# Market data setup
 
-The first real-data integration uses [Alpha Vantage](https://www.alphavantage.co/documentation/#monthlyadj) and [ECB reference FX](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html). It runs in GitHub Actions and writes only to the owner's private Firestore market cache. Firebase stays on Spark in Belgium.
+The current implementation uses free Danish reference metadata, historical prices and exchange trade reports. Read [the implementation and source boundaries](FREE_DANISH_DATA.md) for coverage, price adjustments and verification commands.
 
-## Verified first import
+## Configure the restricted writer
 
-Verified on 2026-10-04. [The successful backfill](https://github.com/jacobsbogh/EazyInvest/actions/runs/37162573257) used job commit `d00a15a`. These are the provider's available listing histories, not fund inception dates.
+1. Keep Firebase on Spark. Create a separate email/password account for the market job, preserving the existing owner UID. Set `config/access.marketWriterUid` to that account's UID. The writer must never be the owner.
+2. Keep `MARKET_SYNC_EMAIL` and `MARKET_SYNC_PASSWORD` in Actions secrets. Keep the public Firebase API key, project ID and app ID in repository variables. **No Yahoo, Nasdaq or ESMA key is required.** Existing `ALPHA_VANTAGE_API_KEY` is optional.
+3. Deploy the matching `firestore:rules,firestore:indexes` before running the new job. Owner access remains unchanged; only the writer can update validated registry and market records.
+4. After the implementation is merged into `main`, run **Refresh market data** manually. Verify source/symbol/currency, history counts and actual quote dates in the saved caches. This workflow imports every mapped Danish listing automatically.
+5. Keep `MARKET_SYNC_ENABLED=true` to enable Tuesday–Saturday 05:37 UTC runs. These capture the previous session's briefly retained Nasdaq reports; historical downloads reuse seven-day caches. GitHub may delay schedules or disable them on inactive public repositories.
+6. Publish the matching Pages version after the backend and initial import work. Sign in, open Explore and select **Refresh data** to read saved caches. The browser never downloads external provider data or starts Actions workflows.
 
-| Investment | First observation | Monthly observations |
-| ---------- | ----------------- | -------------------- |
-| VWCE       | 2019-08-30        | 87                   |
-| EUNL       | 2009-11-30        | 204                  |
-| IS3N       | 2014-07-31        | 148                  |
-| SXR8       | 2010-06-29        | 197                  |
-| MSFT       | 1999-12-31        | 323                  |
+## Queues and failures
 
-All five histories, current quotes and ECB reference rates were observed through 2026-10-02 and passed the shared cache schema after storage. The current month's observation can be partial; it is dated at the latest available trading day. Novo B's exact Danish DKK listing was unavailable, so it remains missing. Do not substitute its US ADR. Another free Danish source remains a follow-up.
+Immediate name/ticker/ISIN search covers the full local Danish catalogue. Main Market and First North have separate filters and a paginated table. **Search markets** queues discovery of additional supported US listings through Yahoo's public search. Up to three searches and two requested histories run before routine imports. Completed history requests rotate by their last check. New reference ISINs receive bounded, rotating exact-ISIN lookups.
 
-The separate writer account and encrypted Actions credentials are configured. The owner UID and Spark plan were preserved. The app's historical views are [published](https://jacobsbogh.github.io/EazyInvest/) from app commit `70aeede`. [Full CI](https://github.com/jacobsbogh/EazyInvest/actions/runs/37162572323) and published desktop/mobile checks passed. Weekday updates are enabled with `MARKET_SYNC_ENABLED=true`; the first scheduled run remains to be observed.
+Unsupported histories remain missing. Network errors, malformed responses and permission errors retain previous data; quota responses stop additional history calls. An older saved quote is marked stale. Free-source coverage is per listing, not guaranteed by its presence in the official reference catalogue.
 
-## What is requested
+ECB history is fetched once per run. EUR conversion uses DKK/EUR, USD uses (DKK/EUR)/(USD/EUR), and DKK uses 1. Each historical observation uses a reference on or before its own date, no more than seven days earlier. Missing FX remains missing; current holdings quotes remain separate from return history.
 
-For each catalog instrument, `SYMBOL_SEARCH` must identify the exact candidate listing with matching region, trading currency, security type and issuer/name. German `.DEX` symbols identify Xetra in the provider documentation. A Copenhagen candidate is accepted only if its metadata matches the Danish DKK Novo B listing. No US ADR, Frankfurt alternative or different fund share class is substituted.
+The optional Alpha Vantage fallback preserves its shared 25-request UTC-day allowance and thirteen-second spacing. Legacy Alpha Vantage and Twelve Data caches remain readable with their own provenance and adjustment labels.
 
-`TIME_SERIES_MONTHLY_ADJUSTED` requests the full available history. The provider documents 25+ years, subject to the security's listing history and coverage. Stored observations retain their actual dates, raw closes and adjusted closes, including a partial latest month when returned. `GLOBAL_QUOTE` supplies a separate latest end-of-day price for holdings valuation. There are no requests to premium daily-history or realtime endpoints. A provider paywall, unavailable listing or missing data never activates a purchase or generates prices.
+The source and public Pages assets contain no downloaded price datasets, credentials or personal financial records. Nasdaq describes non-commercial delayed data use as free; Yahoo's data terms apply. This private research implementation does not establish a commercial redistribution licence.
 
-ECB quotes currencies per euro. The conversion is DKK/EUR for EUR, `(DKK/EUR) / (USD/EUR)` for USD, and 1 for DKK. The updater fetches its full daily reference history once per run and stores each close's rate and reference date. It chooses the latest reference on or before the close, at most seven calendar days earlier. Missing rates remain missing. The latest reference rate and date stay separate for present holdings valuation. These are indicative reference rates, not broker rates.
+## Previously verified production data
 
-## Setup and operation
-
-1. Obtain a [free Alpha Vantage key](https://www.alphavantage.co/support/#api-key). Save it as `ALPHA_VANTAGE_API_KEY` in [repository Actions secrets](https://github.com/jacobsbogh/EazyInvest/settings/secrets/actions).
-2. Create a separate Firebase email/password account for the job. Preserve the owner UID and set `config/access.marketWriterUid` to the writer UID. Save its credentials as `MARKET_SYNC_EMAIL` and `MARKET_SYNC_PASSWORD` in Actions secrets. The writer must never be the owner.
-3. Deploy the Firestore rules and run **Refresh market data** manually. Check the log's supported instruments, observation counts, first/last dates, quote dates and FX dates. Logs contain no provider responses, request URLs, keys, passwords or personal records.
-4. Set repository variable `MARKET_SYNC_ENABLED=true` after the first import is verified. The workflow is present at `.github/workflows/market-data.yml`. Its Tuesday–Saturday 05:37 UTC schedule follows the previous weekday's closing prices. GitHub may delay or disable inactive public-repository schedules.
-5. Sign in to the app, open Explore and press **Refresh data** to read the saved cache. The app never calls the provider or starts the workflow.
-
-The free provider limit is [25 requests per day](https://www.alphavantage.co/support/). A private Firestore budget reserves each request before sending it, sharing a 25-request UTC-day cap across scheduled and manual runs, with thirteen-second spacing. Failed attempts count. Provider quota responses stop further calls even when the local counter has room. Supported recent caches are reused; recent histories can acquire dated FX without consuming provider credits or changing their price retrieval timestamp. Unsupported listings remain missing. Other invalid responses retain prior caches. Workflows are serialized and time-limited.
-
-## Search and requested histories
-
-The initial catalog contains 25 listing definitions; inclusion does not imply price
-coverage. Local name/ticker/ISIN search is immediate. **Search markets** saves a
-private request, and the scheduled job processes up to three queued searches with
-the free `SYMBOL_SEARCH` endpoint. Supported results are limited to USD US shares,
-EUR Xetra listings and DKK Copenhagen listings with matching security types.
-Provider results do not invent ISINs or claim an exact US venue when metadata only
-identifies the US market.
-
-**Request history** queues a verified registry listing. The job processes up to
-two requested histories ahead of reference updates, prioritizing pending entries.
-Ready requests rotate by their last check, subject to cache age and the shared
-budget. Searches run first (at most three credits) so growing price queues do not
-starve discovery; the six references follow requested histories. Queues can span
-several runs; unavailable listings remain explicitly
-unavailable. Deploy `firestore:rules,firestore:indexes` before using these queues.
-The writer can maintain registry/queue/budget/cache documents but cannot read the
-owner's strategies or ledger. App refresh loads saved data and request status.
-
-The owner account, market cache and provider key remain private. Only public Firebase web configuration belongs in `VITE_` build variables. Do not commit quotes, financial backups, account emails, passwords or provider keys. The source is for private individual analysis under [Alpha Vantage's personal-use terms](https://www.alphavantage.co/terms_of_service/), not redistribution of the fetched dataset.
-
-## Historical analysis
-
-Explore defaults to 20 years and DKK, with shorter/full-history choices and a trading-currency switch. The app shows the actual range and observation count. A younger fund cannot have 20 years of its own prices. Monthly adjusted closes support long-term return/drawdown comparisons; monthly observations may miss deeper falls within a month. Comparisons use overlapping months only. Holding-period statistics use all available primary-investment history, with annualized returns, partial/calendar years and completed rolling 5/10/20-year windows. Their observed loss share is not a forecast.
-
-The historical saving simulator applies fixed month-end DKK contributions over a selected continuous period. It separately shows contributed money, ending historical value and gain/loss. The current UTC month is excluded; no prices or exchange rates are filled in. See [the calculation specification](CALCULATIONS.md) for exact timing and assumptions.
-
-Legacy Twelve Data caches can still be read with their original price-only labels. That adapter is retained for compatibility, but the active workflow uses Alpha Vantage exclusively.
-
-## Verified historical FX enrichment
-
-On 2026-10-04, [the enrichment workflow](https://github.com/jacobsbogh/EazyInvest/actions/runs/37167178086) at commit `3c33474` added dated ECB rates to all 959 observations across the five available listings. Existing recent price histories, current quotes, valuation FX and price retrieval timestamps were preserved. No additional Alpha Vantage history requests were needed; Novo B remained unavailable.
-
-All five caches passed the shared schema and produced DKK analysis. With October's partial observation excluded, MSFT had 322 completed monthly observations and 82 rolling 20-year windows. VWCE's 86 completed observations supported 26 rolling five-year windows; the app correctly showed longer periods as unavailable. ECB's downloaded daily history began on 1999-01-04 and covered every available listing's first observation.
+Before this implementation, the [2026-10-04 Alpha Vantage backfill](https://github.com/jacobsbogh/EazyInvest/actions/runs/37162573257) imported VWCE, EUNL, IS3N, SXR8 and MSFT, totaling 959 monthly observations through 2026-10-02. Novo's exact Copenhagen listing was unavailable from that source. The [historical FX enrichment](https://github.com/jacobsbogh/EazyInvest/actions/runs/37167178086) added dated ECB rates without changing the cached price retrieval timestamps. Those are verification records for the earlier production release, not evidence that the new Danish import has been deployed.

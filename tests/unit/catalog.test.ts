@@ -17,7 +17,7 @@ const match = {
 const custom = () => parseSearchResults({ bestMatches: [match] })[0];
 describe('growing investment catalog', () => {
   it('validates the reference metadata without claiming prices or invented ISINs', () => {
-    expect(instruments.length).toBe(25);
+    expect(instruments.length).toBeGreaterThan(150);
     for (const item of instruments) expect(instrumentSchema.safeParse(item).success).toBe(true);
     expect(instruments.find((item) => item.ticker === 'AAPL')?.isin).toBe('');
   });

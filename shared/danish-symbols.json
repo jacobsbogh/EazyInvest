@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-10-04",
+  "listings": [
+    {
+      "isin": "DK0060952240",
+      "mic": "XCSE",
+      "symbol": "BETCO-DKK.CO",
+      "source": "https://view.news.eu.nasdaq.com/view?id=ba8533e33fadfbb30c9ff8cba1f6410aa&lang=en"
+    },
+    {
+      "isin": "SE0009888738",
+      "mic": "XCSE",
+      "symbol": "BOOZT-DKK.CO",
+      "source": "https://view.news.eu.nasdaq.com/view?id=bb82d16eda0a22911ed1f9938ed15663a&lang=en"
+    },
+    {
+      "isin": "FI4000297767",
+      "mic": "XCSE",
+      "symbol": "NDA-DK.CO",
+      "source": "https://www.nordea.com/en/investors/share-data"
+    },
+    {
+      "isin": "FI4000552500",
+      "mic": "XCSE",
+      "symbol": "SAMPO-DKK.CO",
+      "source": "https://www.nasdaq.com/press-release/exchange-notice-regarding-sampo-plc-2024-09-16"
+    }
+  ]
+}

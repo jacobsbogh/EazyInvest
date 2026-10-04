@@ -13,6 +13,8 @@ import { HistoricalSavings } from '../components/HistoricalSavings';
 import { PageHeading, Empty, Note, Field } from '../components/ui';
 import { PriceChart } from '../components/charts';
 import { date, number, percent } from '../lib/format';
+import { danishCatalogDate } from '../../shared/catalog';
+import { historyIsStale, ecbHistoryStart } from '../../shared/market-policy';
 
 export default function Explore() {
   const {
@@ -37,6 +39,7 @@ export default function Explore() {
   );
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All investments');
+  const [page, setPage] = useState(0);
   const [compare, setCompare] = useState<InstrumentId[]>([]);
   const [years, setYears] = useState<number | 'all'>(20);
   const [analysisCurrency, setAnalysisCurrency] = useState<'native' | 'DKK'>('DKK');
@@ -50,9 +53,14 @@ export default function Explore() {
       (filter === 'All investments' ||
         (filter === 'ETFs' && i.kind === 'ETF') ||
         (filter === 'Stocks' && i.kind === 'Stock') ||
+        (filter === 'Danish stocks' && i.mic !== undefined) ||
+        (filter === 'First North' && ['DSME', 'FNDK'].includes(i.mic ?? '')) ||
         (filter === 'Watchlist' && data.watchlist.some((w) => w.instrumentId === i.id))),
   );
   const selectedIds = [selected, ...compare.filter((id) => id !== selected)].slice(0, 3);
+  const pageSize = 20;
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(rows.length / pageSize) - 1));
+  const visibleRows = rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   const {
     available,
     monthly,
@@ -102,16 +110,21 @@ export default function Explore() {
       <section className="card explorer-list">
         <div className="explorer-toolbar">
           <div className="tabs" aria-label="Investment filters">
-            {['All investments', 'ETFs', 'Stocks', 'Watchlist'].map((tab) => (
-              <button
-                key={tab}
-                className={filter === tab ? 'active' : ''}
-                onClick={() => setFilter(tab)}
-                aria-pressed={filter === tab}
-              >
-                {tab}
-              </button>
-            ))}
+            {['All investments', 'Danish stocks', 'First North', 'ETFs', 'Stocks', 'Watchlist'].map(
+              (tab) => (
+                <button
+                  key={tab}
+                  className={filter === tab ? 'active' : ''}
+                  onClick={() => {
+                    setFilter(tab);
+                    setPage(0);
+                  }}
+                  aria-pressed={filter === tab}
+                >
+                  {tab}
+                </button>
+              ),
+            )}
           </div>
           <label className="search-field">
             <Search size={17} />
@@ -119,7 +132,10 @@ export default function Explore() {
               aria-label="Search investments"
               placeholder="Name, ticker or ISIN"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(0);
+              }}
             />
           </label>
         </div>
@@ -138,7 +154,7 @@ export default function Explore() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((i) => {
+                {visibleRows.map((i) => {
                   const price = latestQuote(market[i.id]);
                   const saved = data.watchlist.some((w) => w.instrumentId === i.id);
                   return (
@@ -156,6 +172,7 @@ export default function Explore() {
                             <strong>{i.shortName}</strong>
                             <small>
                               {i.ticker} · {i.kind}
+                              {i.referenceStatus === 'retained' && ' · Historical listing'}
                             </small>
                           </span>
                         </button>
@@ -164,7 +181,13 @@ export default function Explore() {
                         {i.exchange} · {i.currency}
                       </td>
                       <td>{price ? `${number(price.close)} ${i.currency}` : 'Not loaded'}</td>
-                      <td className="muted">{price ? date(price.date) : '—'}</td>
+                      <td className="muted">
+                        {price
+                          ? `${date(price.date)}${mode === 'cloud' && historyIsStale(market[i.id]!) ? ' · Stale' : ''}`
+                          : i.mic && !i.yahooSymbol
+                            ? 'History unavailable'
+                            : '—'}
+                      </td>
                       <td>
                         <button
                           className={`icon-button star-button ${saved ? 'saved' : ''}`}
@@ -196,9 +219,31 @@ export default function Explore() {
             }}
           />
         )}
+        {rows.length > pageSize && (
+          <nav className="button-group table-footnote" aria-label="Investment pages">
+            <button
+              className="button secondary"
+              disabled={currentPage === 0}
+              onClick={() => setPage(currentPage - 1)}
+            >
+              Previous
+            </button>
+            <span aria-live="polite">
+              {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, rows.length)} of{' '}
+              {rows.length} listings
+            </span>
+            <button
+              className="button secondary"
+              disabled={(currentPage + 1) * pageSize >= rows.length}
+              onClick={() => setPage(currentPage + 1)}
+            >
+              Next
+            </button>
+          </nav>
+        )}
         <div className="table-footnote">
-          A research starting point, not a recommended portfolio. Fund overlap and concentration
-          matter.
+          {instruments.filter((i) => i.mic).length} Danish share listings · Main Market and First
+          North · ESMA reference snapshot {danishCatalogDate}. Price coverage varies by listing.
         </div>
       </section>
       <section className="card coverage-card">
@@ -206,22 +251,48 @@ export default function Explore() {
           <h2>{item.ticker}: history coverage</h2>
           <p>
             {series
-              ? `${mode === 'demo' ? 'Generated sample' : 'Saved provider'} history: ${series.points[0].date} to ${series.points.at(-1)!.date}.`
-              : historyRequests[selected]?.status === 'pending'
-                ? 'History is queued. Check after the next scheduled data update.'
-                : historyRequests[selected]?.status === 'unavailable'
-                  ? 'The free source does not support this exact listing.'
-                  : 'Historical data has not been requested for this listing.'}
+              ? `${mode === 'demo' ? 'Generated sample' : series.source} history: ${series.points[0].date} to ${series.points.at(-1)!.date}.${mode === 'cloud' && historyIsStale(series) ? ' Data is over a week old; the last available cache is shown.' : ''}`
+              : item.mic && !item.yahooSymbol
+                ? 'This official listing has no unambiguous free history mapping yet. It remains available for your watchlist and research.'
+                : historyRequests[selected]?.status === 'pending'
+                  ? 'History is queued. Check after the next scheduled data update.'
+                  : historyRequests[selected]?.status === 'unavailable'
+                    ? 'The free source does not support this exact listing.'
+                    : 'Historical data has not been requested for this listing.'}
           </p>
           <p className="text-small muted">
             {item.isin || 'ISIN not verified'} · {item.exchange} · {item.currency}
           </p>
+          {mode === 'cloud' && (
+            <p className="text-small muted">
+              History refreshes weekly. Prices and monthly observations show their actual dates.
+            </p>
+          )}
+          {series?.reportedTrade && (
+            <p className="text-small muted">
+              <a
+                href="https://tradereports.nasdaq.com/shares/trade-reports/post-trade"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Nasdaq reported exchange trade
+              </a>
+              : {number(series.reportedTrade.close)} DKK ·{' '}
+              {new Date(series.reportedTrade.dateTime).toLocaleString('da-DK')} ·{' '}
+              {series.reportedTrade.mic}. Closing-session sample; historical analysis uses{' '}
+              {series.source}.
+            </p>
+          )}
         </div>
         <div className="button-group">
           {!series && (
             <button
               className="button secondary"
-              disabled={mode === 'demo' || historyRequests[selected]?.status === 'pending'}
+              disabled={
+                mode === 'demo' ||
+                (item.mic !== undefined && !item.yahooSymbol) ||
+                historyRequests[selected]?.status === 'pending'
+              }
               onClick={() => void queueHistory(selected)}
             >
               Request history
@@ -426,6 +497,15 @@ export default function Explore() {
             </p>
           )}
           <Note>
+            {analysisCurrency === 'DKK' &&
+              series?.currency !== 'DKK' &&
+              series?.fxSource === 'ECB' &&
+              series.points[0].date < ecbHistoryStart && (
+                <>
+                  DKK history starts where ECB rates are available, from January 1999. Older history
+                  remains available in trading currency.{' '}
+                </>
+              )}
             {mode === 'demo'
               ? 'All prices, performance, FX rates, and drawdowns shown here are generated examples, not market history.'
               : adjusted
@@ -442,6 +522,9 @@ export default function Explore() {
               {series.providerSymbol && <>{series.providerSymbol} · </>}
               Retrieved {date(series.fetchedAt)} · Quote {date(last!.date)} ·{' '}
               {series.fxSource ?? 'Provider'} FX {date(series.fxDate)}
+              {series.closeAdjustment === 'splits' && (
+                <> · Historical Close is split-adjusted; Adj Close also includes dividends.</>
+              )}
             </div>
           )}
         </section>
@@ -477,7 +560,11 @@ export default function Explore() {
               currency exposure.
             </p>
             <a className="text-link" href={item.source} target="_blank" rel="noreferrer">
-              {item.sourceKind === 'provider' ? 'View listing source' : 'Visit the issuer'}{' '}
+              {item.sourceKind === 'regulator'
+                ? 'View official listing source'
+                : item.sourceKind === 'provider'
+                  ? 'View listing source'
+                  : 'Visit the issuer'}{' '}
               <ArrowUpRight size={15} />
             </a>
           </section>

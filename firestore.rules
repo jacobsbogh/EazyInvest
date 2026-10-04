@@ -75,9 +75,9 @@ service cloud.firestore {
         && (instrumentId in ['vwce','eunl','is3n','sxr8','novo','msft']
           || exists(/databases/$(database)/documents/instrumentRegistry/$(instrumentId)))
         && request.resource.data.keys().hasAll(['instrumentId','currency','source','fetchedAt','fxToDkk','fxDate','points'])
-        && request.resource.data.keys().hasOnly(['instrumentId','currency','source','fetchedAt','fxToDkk','fxDate','points','frequency','adjustment','providerSymbol','quote','fxSource'])
+        && request.resource.data.keys().hasOnly(['instrumentId','currency','source','fetchedAt','fxToDkk','fxDate','points','frequency','adjustment','providerSymbol','quote','fxSource','closeAdjustment','reportedTrade'])
         && request.resource.data.instrumentId == instrumentId
-        && request.resource.data.source in ['Twelve Data','Alpha Vantage']
+        && request.resource.data.source in ['Twelve Data','Alpha Vantage','Yahoo Finance']
         && request.resource.data.currency == (instrumentId in ['vwce','eunl','is3n','sxr8','novo','msft']
           ? {'vwce':'EUR','eunl':'EUR','is3n':'EUR','sxr8':'EUR','novo':'DKK','msft':'USD'}[instrumentId]
           : get(/databases/$(database)/documents/instrumentRegistry/$(instrumentId)).data.currency)
@@ -86,9 +86,13 @@ service cloud.firestore {
           && request.resource.data.frequency == 'monthly'
           && request.resource.data.adjustment == 'splits-and-dividends'
           && request.resource.data.fxSource == 'ECB'
-          && request.resource.data.providerSymbol == (instrumentId in ['vwce','eunl','is3n','sxr8','novo','msft']
+          && ((request.resource.data.source == 'Yahoo Finance'
+              && exists(/databases/$(database)/documents/instrumentRegistry/$(instrumentId))
+              && request.resource.data.providerSymbol == get(/databases/$(database)/documents/instrumentRegistry/$(instrumentId)).data.yahooSymbol
+              && request.resource.data.closeAdjustment == 'splits')
+            || (request.resource.data.source == 'Alpha Vantage' && request.resource.data.providerSymbol == (instrumentId in ['vwce','eunl','is3n','sxr8','novo','msft']
             ? {'vwce':'VWCE.DEX','eunl':'EUNL.DEX','is3n':'IS3N.DEX','sxr8':'SXR8.DEX','novo':'NOVO-B.CPH','msft':'MSFT'}[instrumentId]
-            : get(/databases/$(database)/documents/instrumentRegistry/$(instrumentId)).data.providerSymbol)
+            : get(/databases/$(database)/documents/instrumentRegistry/$(instrumentId)).data.providerSymbol)))
           && request.resource.data.quote is map
           && request.resource.data.quote.keys().hasAll(['date','close'])
           && request.resource.data.quote.keys().hasOnly(['date','close'])
@@ -101,13 +105,25 @@ service cloud.firestore {
         && request.resource.data.points is list
         && request.resource.data.points.size() > 0 && request.resource.data.points.size() <= 6000
         && validMarketPoint(request.resource.data.points[0], request.resource.data.currency)
-        && validMarketPoint(request.resource.data.points[request.resource.data.points.size() - 1], request.resource.data.currency);
+        && validMarketPoint(request.resource.data.points[request.resource.data.points.size() - 1], request.resource.data.currency)
+        && (!('reportedTrade' in request.resource.data) || validReportedTrade(request.resource.data.reportedTrade, instrumentId));
       allow list, delete: if false;
+    }
+    function validReportedTrade(v, id) {
+      return v is map && v.keys().hasAll(['source','dateTime','close','isin','mic','reportFile','fetchedAt'])
+        && v.keys().hasOnly(['source','dateTime','close','isin','mic','reportFile','fetchedAt'])
+        && v.source == 'Nasdaq Nordic' && bounded(v.close, 0.000001, 10000000)
+        && v.dateTime is string && v.fetchedAt is string
+        && v.reportFile is string && v.reportFile.matches('^NordicEquity-posttrade-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{4}$')
+        && exists(/databases/$(database)/documents/instrumentRegistry/$(id))
+        && get(/databases/$(database)/documents/instrumentRegistry/$(id)).data.currency == 'DKK'
+        && v.isin == get(/databases/$(database)/documents/instrumentRegistry/$(id)).data.isin
+        && v.mic == get(/databases/$(database)/documents/instrumentRegistry/$(id)).data.mic;
     }
     function validInstrument(v, id) {
       return v is map && v.id == id && id.matches('^[a-z][a-z0-9-]{0,59}$')
-        && v.keys().hasAll(['id','name','shortName','ticker','exchange','currency','kind','region','description','isin','source','color','providerSymbol'])
-        && v.keys().hasOnly(['id','name','shortName','ticker','exchange','currency','kind','region','description','isin','source','color','providerSymbol','sourceKind'])
+        && v.keys().hasAll(['id','name','shortName','ticker','exchange','currency','kind','region','description','isin','source','color'])
+        && v.keys().hasOnly(['id','name','shortName','ticker','exchange','currency','kind','region','description','isin','source','color','providerSymbol','sourceKind','mic','yahooSymbol','yahooType','symbolSource','referenceStatus'])
         && v.name is string && v.name.size() > 0 && v.name.size() <= 160
         && v.shortName is string && v.shortName.size() > 0 && v.shortName.size() <= 80
         && v.ticker is string && v.ticker.size() > 0 && v.ticker.size() <= 30
@@ -116,7 +132,13 @@ service cloud.firestore {
         && v.isin is string && (v.isin == '' || v.isin.matches('^[A-Z]{2}[A-Z0-9]{9}[0-9]$'))
         && v.source is string && v.source.matches('^https://.*')
         && v.color is string && v.color.matches('^#[a-fA-F0-9]{6}$')
-        && v.providerSymbol is string && v.providerSymbol.matches('^[A-Z0-9][A-Z0-9.-]{0,29}$');
+        && (!('providerSymbol' in v) || (v.providerSymbol is string && v.providerSymbol.matches('^[A-Z0-9][A-Z0-9.-]{0,29}$')))
+        && (!('yahooSymbol' in v) || (v.yahooSymbol is string && v.yahooSymbol.matches('^[A-Z0-9][A-Z0-9.-]{0,29}$')))
+        && (!('mic' in v) || (v.mic in ['XCSE','DSME','FNDK'] && v.kind == 'Stock' && v.isin != ''))
+        && (!('yahooType' in v) || v.yahooType == 'EQUITY' || (v.yahooType == 'MUTUALFUND' && 'mic' in v && v.sourceKind == 'regulator'))
+        && (!('symbolSource' in v) || (v.symbolSource is string && v.symbolSource.matches('^https://.*')))
+        && (!('referenceStatus' in v) || v.referenceStatus in ['current','retained'])
+        && (!('sourceKind' in v) || v.sourceKind in ['issuer','provider','regulator']);
     }
     match /instrumentRegistry/{id} {
       allow get: if owner() || marketWriter();

@@ -65,11 +65,11 @@ The workflow is `.github/workflows/market-data.yml`. Follow [the market-data run
 1. Keep Email/Password enabled in Authentication.
 2. Create a dedicated Authentication user for the market job with a strong unique password. It need not receive email. **Do not use the owner account.**
 3. Add that UID as the string field `marketWriterUid` in `config/access`, preserving `ownerUid`.
-4. Add these [Actions secrets](https://github.com/jacobsbogh/EazyInvest/settings/secrets/actions): `MARKET_SYNC_EMAIL`, `MARKET_SYNC_PASSWORD`, `ALPHA_VANTAGE_API_KEY`. Enter secrets through GitHub's form, not chat, command arguments, or repository files. No admin/service-account key is needed.
+4. Keep these [Actions secrets](https://github.com/jacobsbogh/EazyInvest/settings/secrets/actions): `MARKET_SYNC_EMAIL`, `MARKET_SYNC_PASSWORD`. `ALPHA_VANTAGE_API_KEY` is an optional non-Danish fallback. Enter secrets through GitHub's form, not chat, command arguments, or repository files. No admin/service-account key or paid stock-data key is needed.
 5. Deploy the Firestore rules and run **Refresh market data** manually. Verify supported exact listings, historical ranges, price dates and FX dates. Unsupported prices remain missing or retain their previous data.
 6. Set the Actions variable `MARKET_SYNC_ENABLED=true` to enable Tuesday–Saturday updates at 05:37 UTC (06:37 Danish winter time / 07:37 summer time), after the previous weekday's close. GitHub can delay runs and disable public-repository schedules after 60 inactive days.
 
-The job can maintain listing definitions, private search/history queues, its request budget and market caches, never personal records. It maintains the six references plus requested listings, reuses caches younger than 20 hours, and shares a persistent 25-request UTC-day cap across all runs, with thirteen-second spacing. Provider data stays in Firestore, never the public repository. The app's refresh button reads that cache. Deploy both rules and the declared queue indexes before publishing the strategy release.
+The job can maintain listing definitions, private queues, its optional Alpha Vantage budget and market caches, never personal records. It imports every mapped Danish listing, reuses history for seven days and collects a daily Nasdaq closing-session reference sample. The optional Alpha Vantage fallback keeps its persistent 25-request UTC-day cap and thirteen-second spacing. Downloaded prices stay in Firestore. The app's refresh button reads that cache. Deploy both rules and queue indexes before running the new import and publishing its matching frontend.
 
 ## Release checks and references
 

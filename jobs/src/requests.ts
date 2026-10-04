@@ -18,13 +18,21 @@ import { ProviderError } from './alpha-vantage.js';
 import { requestAlpha } from './alpha-client.js';
 import { parseSearchResults } from './listings.js';
 import { listingSymbol } from './listings.js';
+import { freshHistory } from '../../shared/market-policy.js';
+import { yahooSymbol } from './yahoo.js';
 
-export async function seedRegistry(db: Firestore) {
-  for (const item of instruments)
-    await setDoc(doc(db, 'instrumentRegistry', item.id), {
-      ...item,
-      providerSymbol: listingSymbol(item),
-    });
+export async function seedRegistry(db: Firestore, catalog: Instrument[] = instruments) {
+  for (const item of catalog)
+    await setDoc(
+      doc(db, 'instrumentRegistry', item.id),
+      Object.fromEntries(
+        Object.entries({
+          ...item,
+          providerSymbol: listingSymbol(item),
+          yahooSymbol: yahooSymbol(item),
+        }).filter(([, value]) => value !== undefined),
+      ),
+    );
 }
 export async function processRequests(
   db: Firestore,
@@ -32,6 +40,7 @@ export async function processRequests(
   credit: () => Promise<void>,
   fetchSeries: (item: Instrument) => Promise<MarketSeries>,
   kind: 'search' | 'history' = 'search',
+  search?: (text: string) => Promise<Instrument[]>,
 ) {
   let failed = 0;
   // Ordered, bounded queues prevent an expanding catalog from exhausting reads.
@@ -50,14 +59,15 @@ export async function processRequests(
   for (const snapshot of pendingSearches.docs) {
     const request = discoverySchema.parse(snapshot.data());
     try {
-      const results = parseSearchResults(
-        await requestAlpha(apiKey, credit, { function: 'SYMBOL_SEARCH', keywords: request.query }),
-      );
-      for (const item of results)
-        await setDoc(doc(db, 'instrumentRegistry', item.id), {
-          ...item,
-          providerSymbol: listingSymbol(item),
-        });
+      const results = search
+        ? await search(request.query)
+        : parseSearchResults(
+            await requestAlpha(apiKey, credit, {
+              function: 'SYMBOL_SEARCH',
+              keywords: request.query,
+            }),
+          );
+      await seedRegistry(db, results);
       await setDoc(snapshot.ref, {
         ...request,
         status: results.length ? 'ready' : 'unavailable',
@@ -108,16 +118,7 @@ export async function processRequests(
       if (item.id !== request.instrumentId) throw new Error('Listing identity mismatch.');
       const current = await getDocFromServer(doc(db, 'market', item.id));
       const cached = marketSchema.safeParse(current.data());
-      const age = cached.success ? Date.now() - Date.parse(cached.data.fetchedAt) : Infinity;
-      if (
-        !cached.success ||
-        cached.data.instrumentId !== item.id ||
-        cached.data.source !== 'Alpha Vantage' ||
-        cached.data.providerSymbol !== listingSymbol(item) ||
-        cached.data.currency !== item.currency ||
-        age < 0 ||
-        age >= 72000000
-      ) {
+      if (!cached.success || !freshHistory(cached.data, item)) {
         const series = await fetchSeries(item);
         await setDoc(doc(db, 'market', item.id), series);
       }

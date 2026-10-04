@@ -8,6 +8,7 @@ import {
   loadWorkspace,
   saveWorkspace,
   loadMarket,
+  loadRegistry,
   searchMarkets,
   queueHistory,
 } from '../../src/lib/cloud';
@@ -15,6 +16,7 @@ import { instruments } from '../../shared/catalog';
 import { processRequests, seedRegistry } from '../../jobs/src/requests';
 import { dailyAllowance } from '../../jobs/src/budget';
 import { emptyWorkspace, demoMarket } from '../../src/lib/demo';
+import { parseYahooSeries } from '../../jobs/src/yahoo';
 
 const projectId = 'demo-eazyinvest';
 if (!process.env.FIRESTORE_EMULATOR_HOST || !process.env.FIREBASE_AUTH_EMULATOR_HOST)
@@ -61,6 +63,58 @@ afterAll(async () => {
   await deleteAdmin(admin);
 });
 describe('Spark workspace persistence', () => {
+  it('loads the whole catalogue across bounded pages and stores free Danish history through the restricted writer', async () => {
+    await seedRegistry(clients[3].db);
+    const registry = await loadRegistry(clients[0].db);
+    expect(registry.length).toBeGreaterThan(150);
+    expect(registry.find((item) => item.id === 'novo')?.yahooSymbol).toBe('NOVO-B.CO');
+    const listing = registry.find((item) => item.yahooSymbol === 'DANSKE.CO')!;
+    await queueHistory(clients[0].db, listing.id);
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    await processRequests(
+      clients[3].db,
+      '',
+      async () => {
+        throw new Error('Free history must not consume Alpha Vantage credits');
+      },
+      async (item) =>
+        parseYahooSeries(
+          {
+            chart: {
+              error: null,
+              result: [
+                {
+                  meta: {
+                    symbol: item.yahooSymbol,
+                    currency: 'DKK',
+                    exchangeName: 'CPH',
+                    instrumentType: 'EQUITY',
+                    exchangeTimezoneName: 'Europe/Copenhagen',
+                    regularMarketTime: Math.floor(now.getTime() / 1000),
+                    regularMarketPrice: 300,
+                  },
+                  timestamp: [Date.parse(`${today}T00:00:00Z`) / 1000],
+                  indicators: { quote: [{ close: [300] }], adjclose: [{ adjclose: [300] }] },
+                },
+              ],
+            },
+          },
+          item,
+          [],
+          now,
+        ),
+      'history',
+    );
+    expect(await loadMarket(clients[0].db, listing.id, registry)).toMatchObject({
+      source: 'Yahoo Finance',
+      currency: 'DKK',
+      providerSymbol: 'DANSKE.CO',
+    });
+    expect(
+      (await adminFirestore(admin).doc(`marketRequests/${listing.id}`).get()).data()?.status,
+    ).toBe('ready');
+  });
   it('rejects anonymous and unrelated users', async () => {
     for (const client of clients.slice(1, 3)) {
       await expect(loadWorkspace(client.db, ownerUid)).rejects.toMatchObject({

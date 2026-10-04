@@ -5,14 +5,22 @@ import {
   getDocsFromServer,
   query,
   limit,
+  orderBy,
+  documentId,
+  startAfter,
   runTransaction,
   type Firestore,
 } from 'firebase/firestore';
-import { marketSchema, parseWorkspace, storedSchema } from '../../shared/schema';
-import type { InstrumentId, Workspace } from '../../shared/schema';
-import { instruments, type Instrument } from '../../shared/catalog';
-import { instrumentSchema } from '../../shared/instrument';
-import { discoverySchema, historyRequestSchema, searchQuerySchema } from '../../shared/discovery';
+import { marketSchema, parseWorkspace, storedSchema } from '../../shared/schema.js';
+import type { InstrumentId, Workspace } from '../../shared/schema.js';
+import { instruments, type Instrument } from '../../shared/catalog.js';
+import { instrumentSchema } from '../../shared/instrument.js';
+import { marketMatchesListing } from '../../shared/market-policy.js';
+import {
+  discoverySchema,
+  historyRequestSchema,
+  searchQuerySchema,
+} from '../../shared/discovery.js';
 
 export async function loadWorkspace(db: Firestore, uid: string) {
   const snapshot = await getDocFromServer(doc(db, 'users', uid, 'workspace', 'current'));
@@ -46,20 +54,38 @@ export async function loadMarket(
   const snapshot = await getDocFromServer(doc(db, 'market', id));
   if (!snapshot.exists()) return null;
   const series = marketSchema.parse(snapshot.data());
+  const item = catalog.find((item) => item.id === id);
   if (
-    series.instrumentId !== id ||
-    series.source === 'demo' ||
-    series.currency !== catalog.find((item) => item.id === id)?.currency ||
-    (catalog.find((item) => item.id === id)?.providerSymbol !== undefined &&
-      series.providerSymbol !== catalog.find((item) => item.id === id)?.providerSymbol)
+    !item ||
+    !marketMatchesListing(series, item) ||
+    (series.reportedTrade &&
+      (series.reportedTrade.isin !== item.isin || series.reportedTrade.mic !== item.mic))
   )
     throw new Error('The market cache does not contain verified provider data.');
   return series;
 }
 
 export async function loadRegistry(db: Firestore): Promise<Instrument[]> {
-  const result = await getDocsFromServer(query(collection(db, 'instrumentRegistry'), limit(100)));
-  return result.docs.map((item) => instrumentSchema.parse(item.data()));
+  const items: Instrument[] = [];
+  let cursor: string | undefined;
+  for (;;) {
+    const result = await getDocsFromServer(
+      query(
+        collection(db, 'instrumentRegistry'),
+        orderBy(documentId()),
+        ...(cursor ? [startAfter(cursor)] : []),
+        limit(100),
+      ),
+    );
+    for (const snapshot of result.docs) {
+      const item = instrumentSchema.parse(snapshot.data());
+      if (item.id !== snapshot.id) throw new Error('Registry identity mismatch.');
+      items.push(item);
+    }
+    if (result.size < 100) return items;
+    if (items.length >= 2000) throw new Error('Registry exceeded the supported catalogue size.');
+    cursor = result.docs.at(-1)!.id;
+  }
 }
 export async function searchMarkets(db: Firestore, input: string) {
   const text = searchQuerySchema.parse(input).toLowerCase();

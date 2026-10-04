@@ -4,7 +4,7 @@ A personal investing workspace for a beginner in Denmark, using personal money a
 
 Source: [jacobsbogh/EazyInvest](https://github.com/jacobsbogh/EazyInvest). Firebase project: `eazyinvest-c3887`. Follow [the setup runbook](docs/DEPLOYMENT.md) for owner access and publication.
 
-Published app: [EazyInvest](https://jacobsbogh.github.io/EazyInvest/). Dedicated email/password sign-in and private Firestore storage run in Belgium on Spark. The market job uses free Alpha Vantage monthly history and ECB reference FX; see [market-data setup](docs/MARKET_DATA.md). Recurring development automation remains deferred.
+Published app: [EazyInvest](https://jacobsbogh.github.io/EazyInvest/). Dedicated email/password sign-in and private Firestore storage run in Belgium on Spark. The new market implementation uses ESMA Danish listing metadata, free Yahoo history, Nasdaq exchange trade references and ECB FX; see [market-data setup](docs/MARKET_DATA.md) for activation of the matching backend and frontend release. Recurring development automation remains deferred.
 
 ## Run locally
 
@@ -21,7 +21,7 @@ Without `.env.local`, choose **Explore the demo**. Generated example prices and 
 
 - Dashboard with goal, watchlist, learning progress and long-term projections.
 - A 1–40 year planner with contributions, fees, inflation, tax illustrations, alternate assumptions, a market shock, table and CSV export.
-- A starting catalog of 25 listings, local name/ticker/ISIN search, queued free-source discovery and history requests, watchlists and research notes.
+- A catalogue with 146 Danish share listings across Copenhagen Main Market and First North, plus reference ETFs/US stocks; local name/ticker/ISIN search, filters, pagination, queued discovery, watchlists and research notes.
 - DKK buy/sell/dividend ledger with average purchase cost, historical transaction FX, gains, reviewed CSV imports and JSON backups.
 - Six investing lessons and 2026 Danish tax calculators with official SKAT sources.
 - Email/password owner sign-in, private Firestore transactions, revision conflict protection and responsive layouts.
@@ -40,7 +40,7 @@ Gains are before tax. Sales/dividends leave the investment ledger; there is no b
 
 The owner saves via Firestore transactions. Rules enforce ownership, field/plan bounds, collection limits and consecutive revisions. Client validation checks detailed ledger semantics and a 750 KB payload limit. An owner using a custom client could corrupt their own records; rules do not recompute the entire ledger. Unauthorized users cannot access it, and invalid loaded data is rejected. See [architecture](docs/ARCHITECTURE.md).
 
-The market job maintains the six reference instruments and processes bounded owner-requested listing/history queues. A persistent budget limits all runs together to 25 provider requests per UTC day, with thirteen-second spacing. It requests full available monthly history and reuses recent caches. ECB FX is fetched once per run. Refreshing in the app loads the private saved cache. No paid endpoint, public price artifact or Firebase billing upgrade is required. See [the strategy implementation plan](docs/STRATEGY_MILESTONE.md) and [fund-fact provenance](docs/FUND_FACTS.md).
+The market job imports all mapped Danish listings automatically and processes bounded owner-requested queues. It downloads free daily Yahoo bars, samples the last observation of each month, and reuses history for seven days. Nasdaq trade samples have separate provenance and never replace return history. ECB FX is fetched once per run. An optional Alpha Vantage fallback retains its persistent free-request budget. Refreshing in the app reads the private saved cache. No paid endpoint, public price artifact or Firebase billing upgrade is required. See [free Danish coverage](docs/FREE_DANISH_DATA.md) and [fund-fact provenance](docs/FUND_FACTS.md).
 
 Pages assets and this repository are public; Auth and rules protect financial records. Never put personal records, provider keys or passwords in source or public `VITE_` configuration.
 

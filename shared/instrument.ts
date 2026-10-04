@@ -22,9 +22,30 @@ export const instrumentSchema = z
       .string()
       .regex(/^[A-Z0-9][A-Z0-9.-]{0,29}$/)
       .optional(),
-    sourceKind: z.enum(['issuer', 'provider']).optional(),
+    sourceKind: z.enum(['issuer', 'provider', 'regulator']).optional(),
+    mic: z.enum(['XCSE', 'DSME', 'FNDK']).optional(),
+    yahooSymbol: z
+      .string()
+      .regex(/^[A-Z0-9][A-Z0-9.-]{0,29}$/)
+      .optional(),
+    yahooType: z.enum(['EQUITY', 'MUTUALFUND']).optional(),
+    referenceStatus: z.enum(['current', 'retained']).optional(),
+    symbolSource: z
+      .string()
+      .url()
+      .refine((value) => value.startsWith('https://'))
+      .optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (item) =>
+      item.yahooType !== 'MUTUALFUND' ||
+      (item.kind === 'Stock' &&
+        item.mic !== undefined &&
+        item.isin !== '' &&
+        item.sourceKind === 'regulator'),
+    'A provider fund classification requires an official Danish share reference.',
+  );
 export type Instrument = z.infer<typeof instrumentSchema>;
 
 export function providerInstrumentId(symbol: string) {

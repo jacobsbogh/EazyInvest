@@ -20,8 +20,11 @@ const candidates = {
 } as const;
 
 export class ProviderError extends Error {
-  constructor(public readonly reason: 'coverage' | 'quota' | 'invalid' | 'unavailable') {
-    super(`Provider request failed: ${reason}.`);
+  constructor(
+    public readonly reason: 'coverage' | 'quota' | 'invalid' | 'unavailable',
+    message?: string,
+  ) {
+    super(message ?? `Provider request failed: ${reason}.`);
   }
 }
 

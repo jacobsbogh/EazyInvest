@@ -3,6 +3,7 @@ import { initializeApp, deleteApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import AxeBuilder from '@axe-core/playwright';
+import { getInstrument } from '../../shared/catalog';
 
 if (
   process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8080' ||
@@ -49,6 +50,52 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => {
   await deleteApp(admin);
+});
+
+test('owner sees free Danish history and a separate dated Nasdaq reference', async ({ page }) => {
+  const item = getInstrument('novo');
+  await getFirestore(admin).doc('instrumentRegistry/novo').set(item);
+  await getFirestore(admin)
+    .doc('market/novo')
+    .set({
+      instrumentId: 'novo',
+      currency: 'DKK',
+      source: 'Yahoo Finance',
+      providerSymbol: 'NOVO-B.CO',
+      frequency: 'monthly',
+      adjustment: 'splits-and-dividends',
+      closeAdjustment: 'splits',
+      fetchedAt: '2026-10-04T10:00:00.000Z',
+      fxToDkk: 1,
+      fxDate: '2026-10-02',
+      fxSource: 'ECB',
+      quote: { date: '2026-10-02', close: 300 },
+      points: [
+        { date: '2026-07-31', close: 200, adjustedClose: 180, fxToDkk: 1, fxDate: '2026-07-31' },
+        { date: '2026-08-31', close: 250, adjustedClose: 225, fxToDkk: 1, fxDate: '2026-08-31' },
+        { date: '2026-09-30', close: 300, adjustedClose: 300, fxToDkk: 1, fxDate: '2026-09-30' },
+      ],
+      reportedTrade: {
+        source: 'Nasdaq Nordic',
+        dateTime: '2026-10-02T14:55:00.000Z',
+        close: 301,
+        isin: item.isin,
+        mic: 'XCSE',
+        reportFile: 'NordicEquity-posttrade-2026-10-02T1655',
+        fetchedAt: '2026-10-04T10:00:00.000Z',
+      },
+    });
+  await signIn(page, ownerEmail);
+  await expect(page.getByRole('heading', { name: 'Your future starts here.' })).toBeVisible();
+  await page.goto('./#/explore');
+  await page.getByRole('button', { name: 'View Novo Nordisk B', exact: true }).click();
+  await expect(page.getByText('Yahoo Finance history: 2026-07-31 to 2026-09-30.')).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Nasdaq reported exchange trade', exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('.coverage-card').first()).toContainText('301');
+  await expect(page.locator('.detail-metrics').first()).toContainText('300');
+  await expect(page.locator('.source-line')).toContainText('NOVO-B.CO');
 });
 
 async function signIn(page: Page, email: string, password = emulatorPassword) {

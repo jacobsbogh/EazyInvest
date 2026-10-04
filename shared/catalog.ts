@@ -1,4 +1,5 @@
-import { providerInstrumentId, type Instrument } from './instrument.js';
+import { instrumentSchema, providerInstrumentId, type Instrument } from './instrument.js';
+import danishCatalog from './danish-listings.json' with { type: 'json' };
 export type { Instrument } from './instrument.js';
 export const instruments: Instrument[] = [
   {
@@ -141,3 +142,17 @@ export const getInstrument = (id: string, catalog: Instrument[] = instruments) =
   if (!item) throw new Error('This investment is not in your catalog.');
   return item;
 };
+
+export const danishListings = danishCatalog.listings.map((item) => instrumentSchema.parse(item));
+// Keep existing IDs and descriptions, especially Novo in saved transactions.
+for (const listing of danishListings) {
+  const index = instruments.findIndex((item) => item.id === listing.id);
+  if (index >= 0)
+    instruments[index] = {
+      ...instruments[index],
+      mic: listing.mic,
+      yahooSymbol: listing.yahooSymbol,
+    };
+  else instruments.push(listing);
+}
+export const danishCatalogDate = danishCatalog.asOf;

@@ -24,6 +24,8 @@
     "format:check": "prettier --check .",
     "build:jobs": "npm run build --workspace jobs",
     "sync:market": "npm run build:jobs && node jobs/lib/jobs/src/refresh.js",
+    "update:danish-catalog": "npm run build:jobs && node jobs/lib/jobs/src/update-danish-catalog.js",
+    "verify:market": "npm run build:jobs && node jobs/lib/jobs/src/verify-market.js",
     "check": "npm run build && npm run build:jobs && npm test"
   },
   "dependencies": {

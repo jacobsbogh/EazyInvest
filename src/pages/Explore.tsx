@@ -1,27 +1,48 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search, Star, ArrowUpRight, RefreshCw } from 'lucide-react';
-import { useApp } from '../lib/store';
-import { instruments, getInstrument } from '../../shared/catalog';
+import { useApp, useHistories } from '../lib/store';
+import { MarketSearch } from '../components/MarketSearch';
+import { FundFacts } from '../components/FundFacts';
 import type { InstrumentId } from '../../shared/schema';
 import { maxDrawdown } from '../../shared/finance';
-import { historicalComparison, latestQuote } from '../../shared/market';
+import { historicalComparison } from '../../shared/market';
 import { historicalObservations } from '../../shared/historical-series';
 import { HoldingPeriodAnalysis } from '../components/HoldingPeriodAnalysis';
 import { HistoricalSavings } from '../components/HistoricalSavings';
 import { PageHeading, Empty, Note, Field } from '../components/ui';
 import { PriceChart } from '../components/charts';
 import { date, number, percent } from '../lib/format';
+import { danishCatalogDate } from '../../shared/catalog';
+import { historyIsStale, ecbHistoryStart } from '../../shared/market-policy';
+import { currentQuote, quoteIsStale } from '../../shared/quote';
 
 export default function Explore() {
-  const { data, market, mode, update, saving, notify, refreshMarket, refreshing } = useApp();
+  const {
+    data,
+    market,
+    quotes,
+    historyStatus,
+    mode,
+    update,
+    saving,
+    notify,
+    refreshMarket,
+    refreshing,
+    instruments,
+    getInstrument,
+    historyRequests,
+    queueHistory,
+  } = useApp();
   const [params] = useSearchParams();
   const requested = params.get('investment');
+  const [targetStrategy, setTargetStrategy] = useState(params.get('strategy') ?? '');
   const [selected, setSelected] = useState<InstrumentId>(
     instruments.find((i) => i.id === requested)?.id ?? 'vwce',
   );
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All investments');
+  const [page, setPage] = useState(0);
   const [compare, setCompare] = useState<InstrumentId[]>([]);
   const [years, setYears] = useState<number | 'all'>(20);
   const [analysisCurrency, setAnalysisCurrency] = useState<'native' | 'DKK'>('DKK');
@@ -35,9 +56,16 @@ export default function Explore() {
       (filter === 'All investments' ||
         (filter === 'ETFs' && i.kind === 'ETF') ||
         (filter === 'Stocks' && i.kind === 'Stock') ||
+        (filter === 'Danish stocks' && i.kind === 'Stock' && i.mic !== undefined) ||
+        (filter === 'Danish funds' && i.kind === 'Fund' && i.mic === 'XCSE') ||
+        (filter === 'First North' && ['DSME', 'FNDK'].includes(i.mic ?? '')) ||
         (filter === 'Watchlist' && data.watchlist.some((w) => w.instrumentId === i.id))),
   );
   const selectedIds = [selected, ...compare.filter((id) => id !== selected)].slice(0, 3);
+  useHistories(selectedIds);
+  const pageSize = 20;
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(rows.length / pageSize) - 1));
+  const visibleRows = rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   const {
     available,
     monthly,
@@ -48,7 +76,8 @@ export default function Explore() {
   const fullHistory = historicalObservations(series, analysisCurrency);
   const dkkHistory = historicalObservations(series, 'DKK');
   const chartCurrency = analysisCurrency === 'DKK' ? 'DKK' : item.currency;
-  const last = latestQuote(series);
+  const pricing = currentQuote(series, quotes[selected]);
+  const last = pricing?.quote;
   const historyLast = points.at(-1);
   const first = points[0];
   async function toggleWatch(id: InstrumentId) {
@@ -72,7 +101,7 @@ export default function Explore() {
       <PageHeading
         eyebrow="CURIOSITY IS A GOOD START"
         title="Get to know your options."
-        description="Explore a starter universe of investments. Compare their behavior and keep notes."
+        description="Find a listing, check its history and build your investment strategy."
         action={
           <button
             className="button secondary"
@@ -87,11 +116,22 @@ export default function Explore() {
       <section className="card explorer-list">
         <div className="explorer-toolbar">
           <div className="tabs" aria-label="Investment filters">
-            {['All investments', 'ETFs', 'Stocks', 'Watchlist'].map((tab) => (
+            {[
+              'All investments',
+              'Danish funds',
+              'Danish stocks',
+              'First North',
+              'ETFs',
+              'Stocks',
+              'Watchlist',
+            ].map((tab) => (
               <button
                 key={tab}
                 className={filter === tab ? 'active' : ''}
-                onClick={() => setFilter(tab)}
+                onClick={() => {
+                  setFilter(tab);
+                  setPage(0);
+                }}
                 aria-pressed={filter === tab}
               >
                 {tab}
@@ -104,7 +144,10 @@ export default function Explore() {
               aria-label="Search investments"
               placeholder="Name, ticker or ISIN"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(0);
+              }}
             />
           </label>
         </div>
@@ -123,8 +166,9 @@ export default function Explore() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((i) => {
-                  const price = latestQuote(market[i.id]);
+                {visibleRows.map((i) => {
+                  const pricing = currentQuote(market[i.id], quotes[i.id]);
+                  const price = pricing?.quote;
                   const saved = data.watchlist.some((w) => w.instrumentId === i.id);
                   return (
                     <tr key={i.id} className={selected === i.id ? 'selected-row' : ''}>
@@ -141,13 +185,22 @@ export default function Explore() {
                             <strong>{i.shortName}</strong>
                             <small>
                               {i.ticker} · {i.kind}
+                              {i.referenceStatus === 'retained' && ' · Historical listing'}
                             </small>
                           </span>
                         </button>
                       </td>
-                      <td>{i.region}</td>
+                      <td>
+                        {i.exchange} · {i.currency}
+                      </td>
                       <td>{price ? `${number(price.close)} ${i.currency}` : 'Not loaded'}</td>
-                      <td className="muted">{price ? date(price.date) : '—'}</td>
+                      <td className="muted">
+                        {price
+                          ? `${date(price.date)}${mode === 'cloud' && pricing && quoteIsStale(pricing) ? ' · Stale' : ''}`
+                          : i.mic && !i.yahooSymbol
+                            ? 'History unavailable'
+                            : '—'}
+                      </td>
                       <td>
                         <button
                           className={`icon-button star-button ${saved ? 'saved' : ''}`}
@@ -167,14 +220,148 @@ export default function Explore() {
           </div>
         ) : (
           <Empty title="No investments found">
-            Try another search or filter. This starter catalog contains six investments.
+            Try another name, ticker or ISIN, or search the supported markets below.
           </Empty>
         )}
+        {query.trim().length >= 2 && (
+          <MarketSearch
+            query={query}
+            choose={(investment) => {
+              choose(investment.id);
+              setQuery('');
+            }}
+          />
+        )}
+        {rows.length > pageSize && (
+          <nav className="button-group table-footnote" aria-label="Investment pages">
+            <button
+              className="button secondary"
+              disabled={currentPage === 0}
+              onClick={() => setPage(currentPage - 1)}
+            >
+              Previous
+            </button>
+            <span aria-live="polite">
+              {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, rows.length)} of{' '}
+              {rows.length} listings
+            </span>
+            <button
+              className="button secondary"
+              disabled={(currentPage + 1) * pageSize >= rows.length}
+              onClick={() => setPage(currentPage + 1)}
+            >
+              Next
+            </button>
+          </nav>
+        )}
         <div className="table-footnote">
-          A research starting point, not a recommended portfolio. Fund overlap and concentration
-          matter.
+          {instruments.filter((i) => i.kind === 'Stock' && i.mic).length} Danish share listings ·
+          Main Market and First North · ESMA reference snapshot {danishCatalogDate}. Price coverage
+          varies by listing.
         </div>
       </section>
+      <section className="card coverage-card">
+        <div>
+          <h2>{item.ticker}: history coverage</h2>
+          <p>
+            {historyStatus[selected] === 'loading'
+              ? 'Loading saved history…'
+              : historyStatus[selected] === 'error'
+                ? 'Saved history could not be loaded. Retry with Refresh data.'
+                : series
+                  ? `${mode === 'demo' ? 'Generated sample' : series.source} history: ${series.points[0].date} to ${series.points.at(-1)!.date}.${mode === 'cloud' && historyIsStale(series) ? ' Data is over a week old; the last available cache is shown.' : ''}`
+                  : item.mic && !item.yahooSymbol
+                    ? 'This official listing has no unambiguous free history mapping yet. It remains available for your watchlist and research.'
+                    : historyRequests[selected]?.status === 'pending'
+                      ? 'History is queued. Check after the next scheduled data update.'
+                      : historyRequests[selected]?.status === 'unavailable'
+                        ? 'The free source does not support this exact listing.'
+                        : 'Historical data has not been requested for this listing.'}
+          </p>
+          <p className="text-small muted">
+            {item.isin || 'ISIN not verified'} · {item.exchange} · {item.currency}
+          </p>
+          {mode === 'cloud' && (
+            <p className="text-small muted">
+              Quotes are checked each scheduled trading-day update; history refreshes weekly. Prices
+              and monthly observations show their actual dates.
+            </p>
+          )}
+          {pricing && (
+            <p className="text-small muted">
+              Latest quote: {number(pricing.quote.close)} {item.currency} · observed{' '}
+              {date(pricing.quote.date)} · checked {date(pricing.fetchedAt)}
+              {mode === 'cloud' && quoteIsStale(pricing) ? ' · Stale' : ''}.
+            </p>
+          )}
+          {series?.reportedTrade && (
+            <p className="text-small muted">
+              <a
+                href="https://tradereports.nasdaq.com/shares/trade-reports/post-trade"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Nasdaq reported exchange trade
+              </a>
+              : {number(series.reportedTrade.close)} DKK ·{' '}
+              {new Date(series.reportedTrade.dateTime).toLocaleString('da-DK')} ·{' '}
+              {series.reportedTrade.mic}. Closing-session sample; historical analysis uses{' '}
+              {series.source}.
+            </p>
+          )}
+        </div>
+        <div className="button-group">
+          {!series && (
+            <button
+              className="button secondary"
+              disabled={
+                mode === 'demo' ||
+                historyStatus[selected] === 'loading' ||
+                (item.mic !== undefined && !item.yahooSymbol) ||
+                historyRequests[selected]?.status === 'pending'
+              }
+              onClick={() => void queueHistory(selected)}
+            >
+              Request history
+            </button>
+          )}
+          <Link className="button primary" to={`/strategies?investment=${selected}`}>
+            Build a strategy
+          </Link>
+        </div>
+      </section>
+      {data.strategies.length > 0 && (
+        <section className="card coverage-card">
+          <Field label="Add investment to saved strategy">
+            <select value={targetStrategy} onChange={(e) => setTargetStrategy(e.target.value)}>
+              <option value="">Choose a strategy</option>
+              {data.strategies
+                .filter(
+                  (s) =>
+                    s.allocations.length < 5 ||
+                    s.allocations.some((a) => a.instrumentId === selected),
+                )
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+            </select>
+          </Field>
+          {data.strategies.some(
+            (s) =>
+              s.id === targetStrategy &&
+              (s.allocations.length < 5 || s.allocations.some((a) => a.instrumentId === selected)),
+          ) && (
+            <Link
+              className="button secondary"
+              to={`/strategies?strategy=${targetStrategy}&investment=${selected}`}
+            >
+              Use this investment
+            </Link>
+          )}
+        </section>
+      )}
       <div className="explore-detail-grid">
         <section className="card">
           <div className="section-heading">
@@ -293,7 +480,13 @@ export default function Explore() {
             </>
           ) : (
             <Empty
-              title="Ready for real market data"
+              title={
+                historyStatus[selected] === 'loading'
+                  ? 'Loading history'
+                  : historyStatus[selected] === 'error'
+                    ? 'History unavailable'
+                    : 'Ready for real market data'
+              }
               action={
                 <button
                   className="button secondary"
@@ -304,8 +497,11 @@ export default function Explore() {
                 </button>
               }
             >
-              This listing has no saved provider data yet. The free source may not cover every
-              exchange. Missing data is never replaced with sample prices.
+              {historyStatus[selected] === 'loading'
+                ? 'The saved price series is loading.'
+                : historyStatus[selected] === 'error'
+                  ? 'The saved cache could not be read. Existing data is retained; retry to check again.'
+                  : 'This listing has no saved provider history yet. The free source may not cover every exchange. Missing data is never replaced with sample prices.'}
             </Empty>
           )}
           <div className="compare-options">
@@ -337,6 +533,15 @@ export default function Explore() {
             </p>
           )}
           <Note>
+            {analysisCurrency === 'DKK' &&
+              series?.currency !== 'DKK' &&
+              series?.fxSource === 'ECB' &&
+              series.points[0].date < ecbHistoryStart && (
+                <>
+                  DKK history starts where ECB rates are available, from January 1999. Older history
+                  remains available in trading currency.{' '}
+                </>
+              )}
             {mode === 'demo'
               ? 'All prices, performance, FX rates, and drawdowns shown here are generated examples, not market history.'
               : adjusted
@@ -349,10 +554,19 @@ export default function Explore() {
           </Note>
           {series && (
             <div className="source-line">
-              Source: {series.source === 'demo' ? 'Generated demonstration' : series.source} ·
-              {series.providerSymbol && <>{series.providerSymbol} · </>}
-              Retrieved {date(series.fetchedAt)} · Quote {date(last!.date)} ·{' '}
-              {series.fxSource ?? 'Provider'} FX {date(series.fxDate)}
+              History source: {series.source === 'demo' ? 'Generated demonstration' : series.source}
+              {series.providerSymbol && <> · {series.providerSymbol}</>} · History retrieved{' '}
+              {date(series.fetchedAt)} · Quote source:{' '}
+              {pricing?.source === 'demo'
+                ? 'Generated demonstration'
+                : (pricing?.source ?? 'unavailable')}
+              {pricing?.providerSymbol && <> · {pricing.providerSymbol}</>} · Quote{' '}
+              {last ? date(last.date) : 'unavailable'} · Quote checked{' '}
+              {pricing ? date(pricing.fetchedAt) : 'unavailable'} ·{' '}
+              {pricing?.fxSource ?? 'Provider'} FX {pricing ? date(pricing.fxDate) : 'unavailable'}
+              {series.closeAdjustment === 'splits' && (
+                <> · Historical Close is split-adjusted; Adj Close also includes dividends.</>
+              )}
             </div>
           )}
         </section>
@@ -372,7 +586,7 @@ export default function Explore() {
               </div>
               <div>
                 <dt>ISIN</dt>
-                <dd className="mono">{item.isin}</dd>
+                <dd className="mono">{item.isin || 'Not verified'}</dd>
               </div>
               <div>
                 <dt>Danish tax status</dt>
@@ -381,13 +595,19 @@ export default function Explore() {
                 </dd>
               </div>
             </dl>
+            <FundFacts item={item} />
             <p className="text-small muted">
               Confirm current costs, the fund’s key information document, and Danish tax
               classification before investing. Trading currency does not describe all underlying
               currency exposure.
             </p>
             <a className="text-link" href={item.source} target="_blank" rel="noreferrer">
-              Visit the issuer <ArrowUpRight size={15} />
+              {item.sourceKind === 'regulator'
+                ? 'View official listing source'
+                : item.sourceKind === 'provider'
+                  ? 'View listing source'
+                  : 'Visit the issuer'}{' '}
+              <ArrowUpRight size={15} />
             </a>
           </section>
           <section className="card">

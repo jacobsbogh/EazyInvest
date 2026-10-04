@@ -7,7 +7,17 @@ import {
   onAuthStateChanged,
 } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { loadWorkspace, saveWorkspace, loadMarket } from './cloud';
+import {
+  loadWorkspace,
+  saveWorkspace,
+  loadMarket,
+  loadRegistry,
+  searchMarkets,
+  queueHistory,
+  loadHistoryRequests,
+  loadQuotes,
+} from './cloud';
+import { instruments, type Instrument } from '../../shared/catalog';
 import type { Workspace, InstrumentId } from '../../shared/schema';
 
 const config = {
@@ -41,15 +51,24 @@ export async function saveCloud(data: Workspace, revision: number) {
   if (!db || !auth?.currentUser) throw new Error('Sign in to save your workspace.');
   return saveWorkspace(db, auth.currentUser.uid, data, revision);
 }
-export async function fetchMarket(instrumentId: InstrumentId) {
+export async function fetchMarket(instrumentId: InstrumentId, catalog: Instrument[] = instruments) {
   if (!db) throw new Error('Connect Firebase to load market data.');
-  const series = await loadMarket(db, instrumentId);
-  if (!series) throw new Error('No provider data yet. Run the market-data workflow on GitHub.');
-  return series;
+  return loadMarket(db, instrumentId, catalog);
 }
-export async function loadCachedMarket() {
-  if (!db) return [];
-  const ids: InstrumentId[] = ['vwce', 'eunl', 'is3n', 'sxr8', 'novo', 'msft'];
-  const snapshots = await Promise.all(ids.map((id) => loadMarket(db, id)));
-  return snapshots.filter((series) => series !== null);
+export async function fetchQuotes(catalog: Instrument[] = instruments) {
+  return db ? loadQuotes(db, catalog) : [];
+}
+export async function fetchRegistry() {
+  return db ? loadRegistry(db) : [];
+}
+export async function discoverInvestments(text: string) {
+  if (!db || !auth?.currentUser) throw new Error('Sign in to search markets.');
+  return searchMarkets(db, text);
+}
+export async function requestHistory(id: string) {
+  if (!db || !auth?.currentUser) throw new Error('Sign in to request history.');
+  return queueHistory(db, id);
+}
+export async function fetchHistoryRequests(ids: string[]) {
+  return db ? loadHistoryRequests(db, ids) : [];
 }

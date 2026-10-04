@@ -1,7 +1,10 @@
 import { z } from 'zod';
+import { instrumentKeySchema, instrumentSchema } from './instrument.js';
+import { instruments } from './catalog.js';
+import { strategySchema } from './strategy.js';
 
 export const instrumentIds = ['vwce', 'eunl', 'is3n', 'sxr8', 'novo', 'msft'] as const;
-export const instrumentIdSchema = z.enum(instrumentIds);
+export const instrumentIdSchema = instrumentKeySchema;
 const money = z.number().finite().min(0).max(100_000_000);
 export const planSchema = z.object({
   initial: money,
@@ -38,20 +41,102 @@ export const transactionSchema = z
 export const watchSchema = z
   .object({ instrumentId: instrumentIdSchema, note: z.string().max(2000) })
   .strict();
-export const workspaceSchema = z
+const currentWorkspaceSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(3),
+    customInstruments: z.array(instrumentSchema).max(100),
+    strategies: z.array(strategySchema).max(10),
+    preferredStrategyId: z.string().nullable(),
     name: z.string().trim().min(1).max(60),
     plan: planSchema,
     transactions: z.array(transactionSchema).max(500),
-    watchlist: z.array(watchSchema).max(6),
+    watchlist: z.array(watchSchema).max(30),
     completedLessons: z
       .array(
         z.enum(['starting', 'compounding', 'diversification', 'costs', 'danish-tax', 'behavior']),
       )
       .max(6),
   })
-  .strict();
+  .strict()
+  .superRefine((data, context) => {
+    const known = new Set(instruments.map((item) => item.id));
+    for (const item of data.customInstruments) {
+      if (known.has(item.id))
+        context.addIssue({ code: 'custom', message: 'Duplicate investment definition.' });
+      known.add(item.id);
+    }
+    if (
+      [
+        ...data.transactions,
+        ...data.watchlist,
+        ...data.strategies.flatMap((s) => s.allocations),
+      ].some((entry) => !known.has(entry.instrumentId))
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'Unknown investment. Add its catalog definition first.',
+      });
+    if (new Set(data.strategies.map((s) => s.id)).size !== data.strategies.length)
+      context.addIssue({ code: 'custom', message: 'Strategy IDs must be unique.' });
+    if (
+      data.preferredStrategyId !== null &&
+      !data.strategies.some((s) => s.id === data.preferredStrategyId)
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'The preferred strategy must be saved in this workspace.',
+      });
+  });
+export const workspaceSchema = z.preprocess((input) => {
+  if (typeof input === 'object' && input !== null && 'version' in input) {
+    if (
+      input.version === 3 &&
+      'customInstruments' in input &&
+      Array.isArray(input.customInstruments)
+    ) {
+      // A previously discovered listing may enter a later built-in snapshot.
+      // Retain conflicting definitions for validation; remove only exact identity
+      // duplicates so saved strategies and backups survive catalogue updates.
+      return {
+        ...input,
+        customInstruments: input.customInstruments.filter((custom: unknown) => {
+          if (
+            typeof custom !== 'object' ||
+            custom === null ||
+            !('id' in custom) ||
+            !('isin' in custom) ||
+            !('currency' in custom)
+          )
+            return true;
+          if (!instrumentSchema.safeParse(custom).success) return true;
+          return !instruments.some(
+            (item) =>
+              item.id === custom.id &&
+              item.isin !== '' &&
+              item.isin === custom.isin &&
+              item.currency === custom.currency,
+          );
+        }),
+      };
+    }
+    if (
+      input.version === 1 &&
+      !('customInstruments' in input) &&
+      !('strategies' in input) &&
+      !('preferredStrategyId' in input)
+    )
+      return {
+        ...input,
+        version: 3,
+        customInstruments: [],
+        strategies: [],
+        preferredStrategyId: null,
+      };
+    if (input.version === 2 && !('strategies' in input) && !('preferredStrategyId' in input))
+      return { ...input, version: 3, strategies: [], preferredStrategyId: null };
+  }
+  return input;
+}, currentWorkspaceSchema);
 export const storedSchema = z.object({
   revision: z.number().int().nonnegative(),
   data: workspaceSchema,
@@ -85,7 +170,7 @@ export const marketSchema = z
   .object({
     instrumentId: instrumentIdSchema,
     currency: z.enum(['EUR', 'USD', 'DKK']),
-    source: z.enum(['demo', 'Twelve Data', 'Alpha Vantage']),
+    source: z.enum(['demo', 'Twelve Data', 'Alpha Vantage', 'Yahoo Finance']),
     fetchedAt: z.string().datetime(),
     fxToDkk: z.number().finite().positive(),
     fxDate: dateSchema,
@@ -93,6 +178,19 @@ export const marketSchema = z
     frequency: z.literal('monthly').optional(),
     adjustment: z.literal('splits-and-dividends').optional(),
     providerSymbol: z.string().min(1).max(40).optional(),
+    closeAdjustment: z.literal('splits').optional(),
+    reportedTrade: z
+      .object({
+        source: z.literal('Nasdaq Nordic'),
+        dateTime: z.string().datetime(),
+        close: z.number().finite().positive(),
+        isin: z.string().regex(/^[A-Z]{2}[A-Z0-9]{9}\d$/),
+        mic: z.enum(['XCSE', 'DSME', 'FNDK']),
+        reportFile: z.string().regex(/^NordicEquity-posttrade-\d{4}-\d{2}-\d{2}T\d{4}$/),
+        fetchedAt: z.string().datetime(),
+        transactionId: z.string().min(1).max(100).optional(),
+      })
+      .optional(),
     quote: z.object({ date: dateSchema, close: z.number().finite().positive() }).optional(),
     fxSource: z.literal('ECB').optional(),
   })
@@ -108,7 +206,7 @@ export const marketSchema = z
     if (series.points.some((point, i) => i > 0 && point.date <= series.points[i - 1].date))
       context.addIssue({ code: 'custom', message: 'Market dates must be unique and ascending.' });
     if (
-      series.source === 'Alpha Vantage' &&
+      (series.source === 'Alpha Vantage' || series.source === 'Yahoo Finance') &&
       (!series.providerSymbol ||
         series.frequency !== 'monthly' ||
         series.adjustment !== 'splits-and-dividends' ||
@@ -117,12 +215,24 @@ export const marketSchema = z
         series.points.some((point) => point.adjustedClose === undefined) ||
         new Set(series.points.map((point) => point.date.slice(0, 7))).size !==
           series.points.length ||
-        (series.quote && series.quote.date < series.points.at(-1)!.date))
+        (series.source === 'Alpha Vantage' &&
+          series.quote &&
+          series.quote.date < series.points.at(-1)!.date))
     )
       context.addIssue({
         code: 'custom',
         message: 'Adjusted monthly data requires provenance and a separate current quote.',
       });
+    if (series.source === 'Yahoo Finance' && series.closeAdjustment !== 'splits')
+      context.addIssue({
+        code: 'custom',
+        message: 'Yahoo close prices must be labelled split-adjusted.',
+      });
+    if (
+      series.reportedTrade &&
+      (series.currency !== 'DKK' || series.reportedTrade.dateTime > series.reportedTrade.fetchedAt)
+    )
+      context.addIssue({ code: 'custom', message: 'Invalid Danish exchange trade reference.' });
   });
 export type Plan = z.infer<typeof planSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;

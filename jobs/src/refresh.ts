@@ -1,10 +1,22 @@
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer, setDoc, terminate } from 'firebase/firestore';
-import { instrumentIds, marketSchema } from '../../shared/schema.js';
-import { getInstrument } from '../../shared/catalog.js';
+import { getFirestore, terminate } from 'firebase/firestore';
+import { type MarketSeries } from '../../shared/schema.js';
+import { instruments, type Instrument } from '../../shared/catalog.js';
+import { instrumentSchema } from '../../shared/instrument.js';
 import { fetchAlphaSeries, ProviderError } from './alpha-vantage.js';
 import { fetchEcbHistory, withHistoricalFx } from './ecb.js';
+import { dailyAllowance } from './budget.js';
+import { seedRegistry, processRequests } from './requests.js';
+import { fetchYahooSeries, fetchYahooQuote, searchYahooListings } from './yahoo.js';
+import {
+  fetchDanishListings,
+  enrichDanishListing,
+  mergeDanishListings,
+} from './danish-listings.js';
+import { fetchNasdaqReferences, withNasdaqReference } from './nasdaq.js';
+import { refreshInstrument } from './market-cache.js';
+import { loadRegistry } from '../../src/lib/cloud.js';
 
 async function main() {
   const required = [
@@ -13,87 +25,136 @@ async function main() {
     'VITE_FIREBASE_APP_ID',
     'MARKET_SYNC_EMAIL',
     'MARKET_SYNC_PASSWORD',
-    'ALPHA_VANTAGE_API_KEY',
-  ] as const;
+  ];
   if (required.some((key) => !process.env[key]))
-    throw new Error('Configure the Firebase variables and market-sync secrets in GitHub Actions.');
+    throw new Error(
+      'Configure Firebase variables and the restricted market writer. No paid data key is required.',
+    );
   if (process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST)
-    throw new Error('This workflow is for the configured live project only.');
+    throw new Error('Live refresh refuses emulator configuration.');
   const app = initializeApp({
     apiKey: process.env.VITE_FIREBASE_API_KEY,
     projectId: process.env.VITE_FIREBASE_PROJECT_ID,
     appId: process.env.VITE_FIREBASE_APP_ID,
   });
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-  let failed = 0;
-  let updated = 0;
-  let lastRequest = 0;
-  let requests = 0;
+  const auth = getAuth(app),
+    db = getFirestore(app);
+  let failed = 0,
+    updated = 0;
   try {
     await signInWithEmailAndPassword(
       auth,
       process.env.MARKET_SYNC_EMAIL!,
       process.env.MARKET_SYNC_PASSWORD!,
     );
+    const registry = await loadRegistry(db);
+    const catalog = new Map(instruments.map((item) => [item.id, item]));
+    for (const item of registry) catalog.set(item.id, { ...catalog.get(item.id), ...item });
+    try {
+      const listings = await fetchDanishListings();
+      const knownDanish = registry.filter(
+        (item) => item.kind === 'Stock' && item.mic && item.referenceStatus !== 'retained',
+      );
+      if (listings.length < knownDanish.length * 0.75)
+        throw new Error('Incomplete reference update.');
+      const unmapped = listings.filter((reference) => !catalog.get(reference.id)?.yahooSymbol);
+      // Rotate unmapped ISINs too: permanently missing symbols must not starve
+      // newly listed companies. No approximate-name mapping is accepted.
+      const offset = unmapped.length
+        ? (Math.floor(Date.now() / 86400000) * 10) % unmapped.length
+        : 0;
+      const lookups = new Set(
+        [...unmapped.slice(offset), ...unmapped.slice(0, offset)]
+          .slice(0, 10)
+          .map((item) => item.id),
+      );
+      for (const reference of mergeDanishListings(
+        listings,
+        [...catalog.values()].filter((item) => item.kind === 'Stock' && item.mic),
+      )) {
+        let item: Instrument = reference;
+        if (!item.yahooSymbol && lookups.has(item.id)) item = await enrichDanishListing(item);
+        catalog.set(item.id, instrumentSchema.parse(item));
+      }
+    } catch (error) {
+      if (error instanceof ProviderError && error.reason === 'quota') throw error;
+      console.warn('Official listing refresh unavailable; retained the last verified catalogue.');
+    }
+    const previous = new Map(registry.map((item) => [item.id, JSON.stringify(item)]));
+    await seedRegistry(
+      db,
+      [...catalog.values()].filter((item) => previous.get(item.id) !== JSON.stringify(item)),
+    );
     const fxHistory = await fetchEcbHistory();
-    const fx = fxHistory.at(-1)!;
-    for (const id of instrumentIds) {
+    let references: ReadonlyMap<string, NonNullable<MarketSeries['reportedTrade']>> = new Map();
+    try {
+      references = await fetchNasdaqReferences();
+      console.log(`Nasdaq closing-session sample: ${references.size} Danish ISINs.`);
+    } catch (error) {
+      if (error instanceof ProviderError && error.reason === 'quota') throw error;
+      console.warn('Exchange trade reference unavailable; retained saved references.');
+    }
+    const credit = dailyAllowance(db);
+    const fetchSeries = async (item: Instrument) => {
+      let series;
       try {
-        const ref = doc(db, 'market', id);
-        const current = await getDocFromServer(ref);
-        const parsed = marketSchema.safeParse(current.data());
+        series = await fetchYahooSeries(item, fxHistory);
+      } catch (error) {
         if (
-          parsed.success &&
-          parsed.data.source === 'Alpha Vantage' &&
-          parsed.data.instrumentId === id &&
-          Date.now() - Date.parse(parsed.data.fetchedAt) >= 0 &&
-          Date.now() - Date.parse(parsed.data.fetchedAt) < 72000000
-        ) {
-          const backfilled = withHistoricalFx(parsed.data, fxHistory);
-          if (JSON.stringify(backfilled.points) !== JSON.stringify(parsed.data.points)) {
-            // A recent valid provider cache needs no Alpha Vantage requests to
-            // acquire dated FX. Keep its original fetchedAt and current quote.
-            await setDoc(ref, backfilled);
-            console.log(`${id}: recent cache backfilled with historical ECB FX`);
-          } else console.log(`${id}: recent cache retained`);
-          updated++;
-          continue;
-        }
-        const fetched = await fetchAlphaSeries(
-          getInstrument(id),
-          process.env.ALPHA_VANTAGE_API_KEY!,
-          fx,
-          async () => {
-            if (++requests > 18) throw new ProviderError('quota');
-            await new Promise((resolve) =>
-              setTimeout(resolve, Math.max(0, 13000 - (Date.now() - lastRequest))),
-            );
-            lastRequest = Date.now();
-          },
+          !(error instanceof ProviderError) ||
+          error.reason !== 'coverage' ||
+          item.mic !== undefined ||
+          item.currency === 'DKK' ||
+          !process.env.ALPHA_VANTAGE_API_KEY
+        )
+          throw error;
+        series = withHistoricalFx(
+          await fetchAlphaSeries(
+            item,
+            process.env.ALPHA_VANTAGE_API_KEY,
+            fxHistory.at(-1)!,
+            credit,
+          ),
+          fxHistory,
         );
-        const series = withHistoricalFx(fetched, fxHistory);
-        await setDoc(ref, series);
-        updated++;
+      }
+      return withNasdaqReference(series, item, references);
+    };
+    const searches = await processRequests(db, '', credit, fetchSeries, 'search', (text) =>
+      searchYahooListings(text, [...catalog.values()]),
+    );
+    failed += searches.failed;
+    if (searches.quota) throw new ProviderError('quota');
+    const requests = await processRequests(db, '', credit, fetchSeries, 'history');
+    failed += requests.failed;
+    if (requests.quota) throw new ProviderError('quota');
+    // Full histories refresh weekly; lightweight quotes refresh each UTC run day.
+    // Include discovered listings so requested US investments get daily quotes too.
+    for (const item of catalog.values()) {
+      if (item.referenceStatus === 'retained') continue;
+      try {
+        const result = await refreshInstrument(
+          db,
+          item,
+          fxHistory,
+          references,
+          fetchSeries,
+          (definition) => fetchYahooQuote(definition, fxHistory),
+        );
+        failed += result.failed;
+        if (result.observations || result.quoteDate) updated++;
         console.log(
-          `${id}: ${series.points.length} monthly observations, ${series.points[0].date} to ${series.points.at(-1)!.date}; quote ${series.quote!.date}; FX ${series.fxDate}.`,
+          `${item.id}: ${result.observations ?? 0} history observations; quote ${result.quoteDate ?? 'unavailable'}; history ${result.historyUpdated ? 'updated' : 'retained'}.`,
         );
+        await new Promise((resolve) => setTimeout(resolve, 300));
       } catch (error) {
         if (error instanceof ProviderError && error.reason === 'coverage') {
-          console.log(
-            `${id}: exact listing unavailable from the free provider; prior cache retained.`,
-          );
+          console.log(`${item.id}: free history unavailable for this exact ISIN; cache retained.`);
           continue;
         }
+        if (error instanceof ProviderError && error.reason === 'quota') throw error;
         failed++;
-        // Never print provider URLs, credential-bearing errors, or response bodies.
-        console.error(
-          `${id}: update failed; prior cache retained. Check coverage and writer permissions.`,
-        );
-        if (error instanceof ProviderError && error.reason === 'quota') {
-          console.error('Provider allowance unavailable; stopping without further requests.');
-          break;
-        }
+        console.error(`${item.id}: update failed; cache retained.`);
       }
     }
   } finally {
@@ -101,11 +162,12 @@ async function main() {
     await terminate(db);
     await deleteApp(app);
   }
-  if (failed || !updated) throw new Error('Market sync could not finish successfully.');
+  console.log(`History caches checked or updated: ${updated}; failed: ${failed}.`);
+  if (failed || !updated) throw new Error('Market sync incomplete.');
 }
 main().catch(() => {
   console.error(
-    'Market sync incomplete. Check configured secrets, account access, and provider coverage.',
+    'Market sync incomplete. Check public source availability and writer permissions; existing caches were retained.',
   );
   process.exitCode = 1;
 });

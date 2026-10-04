@@ -5,15 +5,15 @@ import { latestQuote } from '../../shared/market';
 import { PageHeading, Stat, Empty } from '../components/ui';
 import { ProjectionChart } from '../components/charts';
 import { portfolio, scenarios } from '../../shared/finance';
-import { getInstrument } from '../../shared/catalog';
-import { money, number, percent } from '../lib/format';
+import { money, number, percent, date } from '../lib/format';
 
 export default function Overview() {
-  const { data, market, mode, refreshing, refreshMarket } = useApp();
-  const holdings = portfolio(data.transactions, market);
+  const { data, market, quotes, mode, refreshing, refreshMarket, getInstrument } = useApp();
+  const holdings = portfolio(data.transactions, market, quotes);
   const projection = scenarios(data.plan);
   const end = projection.at(-1)!;
   const progress = Math.min(100, Math.max(0, ((holdings.value ?? 0) / data.plan.goal) * 100));
+  const preferred = data.strategies.find((s) => s.id === data.preferredStrategyId);
   return (
     <>
       <PageHeading
@@ -21,11 +21,62 @@ export default function Overview() {
         title="Your future starts here."
         description="A little clarity today. A little more confidence for tomorrow."
         action={
-          <Link className="button primary" to="/planner">
-            Build your plan <ArrowUpRight size={17} />
+          <Link
+            className="button primary"
+            to={preferred ? `/strategies?strategy=${preferred.id}` : '/strategies'}
+          >
+            {preferred ? 'Review my strategy' : 'Build a strategy'} <ArrowUpRight size={17} />
           </Link>
         }
       />
+      <section className="card preferred-strategy">
+        {preferred ? (
+          <>
+            <div className="section-heading">
+              <div>
+                <div className="eyebrow">YOUR PREFERRED STRATEGY</div>
+                <h2>{preferred.name}</h2>
+                <p>
+                  {money(preferred.initial)} starting money · {money(preferred.monthly)} per month ·
+                  goal {money(preferred.goal)}
+                </p>
+              </div>
+              <Link className="button secondary" to={`/strategies?strategy=${preferred.id}`}>
+                Compare or adjust
+              </Link>
+            </div>
+            <div className="strategy-library">
+              {preferred.allocations.map((a) => (
+                <Link
+                  className="pill"
+                  key={a.instrumentId}
+                  to={`/explore?investment=${a.instrumentId}`}
+                >
+                  {a.weight}% {getInstrument(a.instrumentId).ticker}
+                </Link>
+              ))}
+            </div>
+            {preferred.note && <p className="strategy-note">{preferred.note}</p>}
+            <p className="text-small muted">
+              This is your saved research plan. Portfolio value below comes from recorded
+              transactions; future projections use your separately saved planner assumptions.
+            </p>
+          </>
+        ) : (
+          <div className="section-heading">
+            <div>
+              <h2>Turn your research into a strategy.</h2>
+              <p>
+                Choose investments, allocate a monthly budget and compare their historical outcomes
+                in DKK.
+              </p>
+            </div>
+            <Link className="button primary" to="/strategies">
+              Create your first strategy
+            </Link>
+          </div>
+        )}
+      </section>
       <div className="stat-grid">
         <Stat
           label="Portfolio value"
@@ -179,7 +230,7 @@ export default function Overview() {
               const series = market[item.id];
               const first = series?.points[0];
               const historyLast = series?.points.at(-1);
-              const last = latestQuote(series);
+              const last = latestQuote(series, quotes[item.id]);
               const change =
                 first && historyLast
                   ? series?.adjustment
@@ -202,7 +253,9 @@ export default function Overview() {
                     <span>
                       {change !== undefined
                         ? `${percent(change)} · ${mode === 'demo' ? 'sample' : series?.adjustment ? 'adjusted history' : 'period'}`
-                        : 'Connect data'}{' '}
+                        : last
+                          ? date(last.date)
+                          : 'No saved quote'}{' '}
                       <ArrowUpRight size={12} />
                     </span>
                   </div>

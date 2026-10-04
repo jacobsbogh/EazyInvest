@@ -10,9 +10,10 @@ concurrency:
   cancel-in-progress: false
 jobs:
   refresh:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.MARKET_SYNC_ENABLED == 'true')
+    # Activate scheduled runs only after deploying rules/indexes and importing quotes.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (vars.MARKET_SYNC_ENABLED == 'true' && vars.MARKET_DATA_VERSION == '2'))
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

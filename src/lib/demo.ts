@@ -3,7 +3,10 @@ import { instrumentIds } from '../../shared/schema';
 import type { Workspace, MarketSeries, InstrumentId } from '../../shared/schema';
 
 export const emptyWorkspace = (): Workspace => ({
-  version: 1,
+  version: 3,
+  customInstruments: [],
+  strategies: [],
+  preferredStrategyId: null,
   name: 'My workspace',
   plan: {
     initial: 25000,

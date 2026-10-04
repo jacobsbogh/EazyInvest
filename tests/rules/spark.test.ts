@@ -6,8 +6,19 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  collection,
+  getDocs,
+  query,
+  limit,
+} from 'firebase/firestore';
+import { getInstrument } from '../../shared/catalog';
 import { emptyWorkspace, demoMarket } from '../../src/lib/demo';
+import { quoteSchema } from '../../shared/quote';
 let env: RulesTestEnvironment;
 const workspace = () => ({ revision: 1, data: emptyWorkspace() });
 const market = () => ({ ...demoMarket().vwce, source: 'Twelve Data' });
@@ -32,6 +43,136 @@ afterAll(async () => {
   await env?.cleanup();
 });
 describe('Spark owner and market-writer boundaries', () => {
+  it('protects lightweight quotes with bounded owner reads, exact listing identity and writer-only updates', async () => {
+    const writer = env.authenticatedContext('writer').firestore();
+    const owner = env.authenticatedContext('owner').firestore();
+    await assertSucceeds(setDoc(doc(writer, 'instrumentRegistry/novo'), getInstrument('novo')));
+    const quote = quoteSchema.parse({
+      instrumentId: 'novo',
+      currency: 'DKK',
+      source: 'Yahoo Finance',
+      providerSymbol: 'NOVO-B.CO',
+      fetchedAt: '2026-10-04T12:00:00.000Z',
+      quote: { date: '2026-10-02', close: 300 },
+      fxToDkk: 1,
+      fxDate: '2026-10-02',
+      fxSource: 'ECB',
+    });
+    const ref = doc(writer, 'marketQuotes/novo');
+    await assertSucceeds(setDoc(ref, quote));
+    await assertSucceeds(getDoc(doc(owner, 'marketQuotes/novo')));
+    await assertSucceeds(getDocs(query(collection(owner, 'marketQuotes'), limit(100))));
+    await assertFails(getDocs(collection(owner, 'marketQuotes')));
+    await assertFails(getDocs(query(collection(owner, 'marketQuotes'), limit(101))));
+    for (const change of [
+      { instrumentId: 'msft' },
+      { currency: 'EUR' },
+      { providerSymbol: 'NVO' },
+      { source: 'demo' },
+      { fxToDkk: 2 },
+      { fxDate: '2026-10-03' },
+      { points: [] },
+      { quote: { date: '2026-10-02', close: 0 } },
+    ])
+      await assertFails(setDoc(ref, { ...quote, ...change }));
+    await assertFails(
+      setDoc(doc(writer, 'marketQuotes/unknown'), { ...quote, instrumentId: 'unknown' }),
+    );
+    await assertFails(setDoc(doc(owner, 'marketQuotes/novo'), quote));
+    await assertFails(deleteDoc(ref));
+    for (const context of [env.unauthenticatedContext(), env.authenticatedContext('stranger')]) {
+      await assertFails(getDoc(doc(context.firestore(), 'marketQuotes/novo')));
+      await assertFails(
+        getDocs(query(collection(context.firestore(), 'marketQuotes'), limit(100))),
+      );
+    }
+  });
+  it('accepts exact free Danish histories and official trade references while rejecting substitutions and owner writes', async () => {
+    const writer = env.authenticatedContext('writer').firestore();
+    const owner = env.authenticatedContext('owner').firestore();
+    const item = {
+      ...getInstrument('novo'),
+      providerSymbol: 'NOVO-B.CPH',
+      yahooSymbol: 'NOVO-B.CO',
+    };
+    await assertSucceeds(setDoc(doc(writer, 'instrumentRegistry/novo'), item));
+    const series = {
+      ...demoMarket().novo,
+      source: 'Yahoo Finance',
+      frequency: 'monthly',
+      adjustment: 'splits-and-dividends',
+      closeAdjustment: 'splits',
+      providerSymbol: 'NOVO-B.CO',
+      fxSource: 'ECB',
+      quote: { date: '2026-10-02', close: 300 },
+      reportedTrade: {
+        source: 'Nasdaq Nordic',
+        transactionId: 'verified-trade-1',
+        dateTime: '2026-10-02T14:55:00.000Z',
+        close: 301,
+        isin: item.isin,
+        mic: 'XCSE',
+        reportFile: 'NordicEquity-posttrade-2026-10-02T1655',
+        fetchedAt: '2026-10-04T12:00:00.000Z',
+      },
+    };
+    await assertSucceeds(setDoc(doc(writer, 'market/novo'), series));
+    for (const change of [
+      { providerSymbol: 'NVO' },
+      { providerSymbol: 'NOVO-A.CO' },
+      { closeAdjustment: 'none' },
+      { currency: 'USD' },
+      { reportedTrade: { ...series.reportedTrade, isin: 'DK0010244425' } },
+      { reportedTrade: { ...series.reportedTrade, mic: 'DSME' } },
+      { reportedTrade: { ...series.reportedTrade, transactionId: '' } },
+      { reportedTrade: { ...series.reportedTrade, transactionId: 'x'.repeat(101) } },
+    ])
+      await assertFails(setDoc(doc(writer, 'market/novo'), { ...series, ...change }));
+    await assertFails(setDoc(doc(owner, 'market/novo'), series));
+    await assertFails(getDoc(doc(writer, 'users/owner/workspace/current')));
+    const eurItem = getInstrument('dk-dk0060315604');
+    await assertSucceeds(setDoc(doc(writer, 'instrumentRegistry', eurItem.id), eurItem));
+    const { reportedTrade: _trade, ...eurSeries } = series;
+    await assertSucceeds(
+      setDoc(doc(writer, 'market', eurItem.id), {
+        ...eurSeries,
+        instrumentId: eurItem.id,
+        currency: 'EUR',
+        providerSymbol: 'RLAINV.CO',
+      }),
+    );
+  });
+  it('accepts issuer-verified Danish funds without confusing provider security type with fund structure', async () => {
+    const writer = env.authenticatedContext('writer').firestore();
+    const owner = env.authenticatedContext('owner').firestore();
+    const item = getInstrument('sparindex-global');
+    const registry = doc(writer, 'instrumentRegistry', item.id);
+    await assertSucceeds(setDoc(registry, item));
+    await assertSucceeds(setDoc(registry, { ...item, yahooType: 'MUTUALFUND' }));
+    await assertFails(
+      setDoc(registry, { ...item, yahooType: 'MUTUALFUND', sourceKind: 'provider' }),
+    );
+    await assertFails(setDoc(registry, { ...item, yahooType: 'MUTUALFUND', isin: '' }));
+    await assertSucceeds(setDoc(registry, item));
+    const series = {
+      ...demoMarket().novo,
+      instrumentId: item.id,
+      source: 'Yahoo Finance',
+      frequency: 'monthly',
+      adjustment: 'splits-and-dividends',
+      closeAdjustment: 'splits',
+      providerSymbol: item.yahooSymbol,
+      fxSource: 'ECB',
+      quote: { date: '2026-10-02', close: 175 },
+    };
+    const price = doc(writer, 'market', item.id);
+    await assertSucceeds(setDoc(price, series));
+    await assertSucceeds(getDoc(doc(owner, 'market', item.id)));
+    await assertFails(setDoc(price, { ...series, providerSymbol: 'DKIGI.CO' }));
+    await assertFails(setDoc(price, { ...series, currency: 'EUR' }));
+    await assertFails(setDoc(doc(owner, 'market', item.id), series));
+    await assertFails(setDoc(doc(owner, 'instrumentRegistry', item.id), item));
+  });
   it('allows owner reads and a sequential workspace update', async () => {
     const db = env.authenticatedContext('owner').firestore();
     await assertSucceeds(getDoc(doc(db, 'users/owner/workspace/current')));
@@ -66,7 +207,8 @@ describe('Spark owner and market-writer boundaries', () => {
       { ...emptyWorkspace(), plan: { ...emptyWorkspace().plan, years: 1000 } },
       { ...emptyWorkspace(), plan: { ...emptyWorkspace().plan, monthly: -1 } },
       { ...emptyWorkspace(), transactions: Array(501).fill({}) },
-      { ...emptyWorkspace(), watchlist: Array(7).fill({}) },
+      { ...emptyWorkspace(), watchlist: Array(31).fill({}) },
+      { ...emptyWorkspace(), strategies: Array(11).fill({}) },
       { ...emptyWorkspace(), name: '' },
       { ...emptyWorkspace(), surprise: true },
     ])
@@ -165,6 +307,104 @@ describe('Spark owner and market-writer boundaries', () => {
       await assertFails(
         setDoc(doc(db, 'users/owner/workspace/current'), { ...workspace(), revision: 2 }),
       );
+    }
+  });
+  it('limits registry writes to the writer and binds new market data to its listing', async () => {
+    const writer = env.authenticatedContext('writer').firestore();
+    const owner = env.authenticatedContext('owner').firestore();
+    const definition = {
+      ...getInstrument('msft'),
+      id: 'av-ibm',
+      ticker: 'IBM',
+      name: 'IBM',
+      providerSymbol: 'IBM',
+    };
+    await assertSucceeds(setDoc(doc(writer, 'instrumentRegistry/av-ibm'), definition));
+    await assertSucceeds(getDocs(query(collection(owner, 'instrumentRegistry'), limit(100))));
+    await assertFails(getDocs(collection(owner, 'instrumentRegistry')));
+    await assertFails(setDoc(doc(owner, 'instrumentRegistry/av-ibm'), definition));
+    await assertFails(setDoc(doc(writer, 'instrumentRegistry/other'), definition));
+    const data = {
+      ...demoMarket().msft,
+      instrumentId: 'av-ibm',
+      source: 'Alpha Vantage',
+      providerSymbol: 'IBM',
+      frequency: 'monthly',
+      adjustment: 'splits-and-dividends',
+      fxSource: 'ECB',
+      quote: { date: '2026-10-02', close: 100 },
+    };
+    await assertSucceeds(setDoc(doc(writer, 'market/av-ibm'), data));
+    await assertFails(setDoc(doc(writer, 'market/av-ibm'), { ...data, providerSymbol: 'MSFT' }));
+    await assertFails(setDoc(doc(writer, 'market/av-ibm'), { ...data, currency: 'EUR' }));
+  });
+  it('allows owner queue creation and writer completion without owner status forgery', async () => {
+    const writer = env.authenticatedContext('writer').firestore();
+    const owner = env.authenticatedContext('owner').firestore();
+    const id = 'a'.repeat(64);
+    const initial = { query: 'ibm', requestedAt: '2026-10-04T10:00:00.000Z', status: 'pending' };
+    await assertSucceeds(setDoc(doc(owner, 'discoveryRequests', id), initial));
+    await assertFails(
+      setDoc(doc(owner, 'discoveryRequests', id), { ...initial, status: 'ready', results: [] }),
+    );
+    await assertSucceeds(
+      setDoc(doc(writer, 'discoveryRequests', id), {
+        ...initial,
+        status: 'ready',
+        results: [],
+        completedAt: '2026-10-04T10:01:00.000Z',
+      }),
+    );
+    await assertFails(
+      setDoc(doc(writer, 'discoveryRequests', id), {
+        ...initial,
+        query: 'changed',
+        status: 'ready',
+      }),
+    );
+    await assertSucceeds(setDoc(doc(owner, 'discoveryRequests', id), initial));
+    await assertFails(
+      getDoc(doc(env.authenticatedContext('stranger').firestore(), 'discoveryRequests', id)),
+    );
+    await assertFails(getDocs(query(collection(owner, 'discoveryRequests'), limit(3))));
+    await assertSucceeds(getDocs(query(collection(writer, 'discoveryRequests'), limit(3))));
+    await assertFails(
+      setDoc(doc(owner, 'marketRequests/unknown'), {
+        instrumentId: 'unknown',
+        requestedAt: initial.requestedAt,
+        status: 'pending',
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(writer, 'instrumentRegistry/msft'), {
+        ...getInstrument('msft'),
+        providerSymbol: 'MSFT',
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(owner, 'marketRequests/msft'), {
+        instrumentId: 'msft',
+        requestedAt: initial.requestedAt,
+        status: 'pending',
+      }),
+    );
+    await assertFails(
+      setDoc(doc(owner, 'marketRequests/msft'), {
+        instrumentId: 'msft',
+        requestedAt: initial.requestedAt,
+        status: 'ready',
+      }),
+    );
+  });
+  it('protects the persistent free-request budget from owners and unrelated accounts', async () => {
+    const writer = env.authenticatedContext('writer').firestore();
+    const budget = { day: '2026-10-04', used: 1, lastRequestAt: 1791108000000 };
+    await assertSucceeds(setDoc(doc(writer, 'marketSync/budget'), budget));
+    await assertFails(setDoc(doc(writer, 'marketSync/budget'), { ...budget, used: 26 }));
+    for (const uid of ['owner', 'stranger']) {
+      const db = env.authenticatedContext(uid).firestore();
+      await assertFails(getDoc(doc(db, 'marketSync/budget')));
+      await assertFails(setDoc(doc(db, 'marketSync/budget'), budget));
     }
   });
 });

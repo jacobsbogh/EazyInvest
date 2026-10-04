@@ -45,11 +45,17 @@ service cloud.firestore {
       return v.keys().hasOnly(['revision','data']) && v.revision is int
         && v.revision > 0 && d is map
         && d.keys().hasAll(['version','name','plan','transactions','watchlist','completedLessons'])
-        && d.keys().hasOnly(['version','name','plan','transactions','watchlist','completedLessons'])
-        && d.version == 1 && d.name is string && d.name.size() >= 1 && d.name.size() <= 60
+        && ((d.version == 1 && d.keys().hasOnly(['version','name','plan','transactions','watchlist','completedLessons']))
+          || (d.version == 3
+            && d.keys().hasAll(['customInstruments','strategies','preferredStrategyId'])
+            && d.keys().hasOnly(['version','name','plan','transactions','watchlist','completedLessons','customInstruments','strategies','preferredStrategyId'])
+            && d.customInstruments is list && d.customInstruments.size() <= 100
+            && d.strategies is list && d.strategies.size() <= 10
+            && (d.preferredStrategyId == null || d.preferredStrategyId is string)))
+        && d.name is string && d.name.size() >= 1 && d.name.size() <= 60
         && validPlan(d.plan)
         && d.transactions is list && d.transactions.size() <= 500
-        && d.watchlist is list && d.watchlist.size() <= 6
+        && d.watchlist is list && d.watchlist.size() <= 30
         && d.completedLessons is list && d.completedLessons.size() <= 6
         && d.completedLessons.toSet().size() == d.completedLessons.size()
         && d.completedLessons.hasOnly(['starting','compounding','diversification','costs','danish-tax','behavior']);
@@ -66,18 +72,27 @@ service cloud.firestore {
     match /market/{instrumentId} {
       allow get: if owner() || marketWriter();
       allow create, update: if marketWriter()
-        && instrumentId in ['vwce','eunl','is3n','sxr8','novo','msft']
+        && (instrumentId in ['vwce','eunl','is3n','sxr8','novo','msft']
+          || exists(/databases/$(database)/documents/instrumentRegistry/$(instrumentId)))
         && request.resource.data.keys().hasAll(['instrumentId','currency','source','fetchedAt','fxToDkk','fxDate','points'])
-        && request.resource.data.keys().hasOnly(['instrumentId','currency','source','fetchedAt','fxToDkk','fxDate','points','frequency','adjustment','providerSymbol','quote','fxSource'])
+        && request.resource.data.keys().hasOnly(['instrumentId','currency','source','fetchedAt','fxToDkk','fxDate','points','frequency','adjustment','providerSymbol','quote','fxSource','closeAdjustment','reportedTrade'])
         && request.resource.data.instrumentId == instrumentId
-        && request.resource.data.source in ['Twelve Data','Alpha Vantage']
-        && request.resource.data.currency == {'vwce':'EUR','eunl':'EUR','is3n':'EUR','sxr8':'EUR','novo':'DKK','msft':'USD'}[instrumentId]
+        && request.resource.data.source in ['Twelve Data','Alpha Vantage','Yahoo Finance']
+        && request.resource.data.currency == (instrumentId in ['vwce','eunl','is3n','sxr8','novo','msft']
+          ? {'vwce':'EUR','eunl':'EUR','is3n':'EUR','sxr8':'EUR','novo':'DKK','msft':'USD'}[instrumentId]
+          : get(/databases/$(database)/documents/instrumentRegistry/$(instrumentId)).data.currency)
         && (request.resource.data.source == 'Twelve Data' || (
           request.resource.data.keys().hasAll(['frequency','adjustment','providerSymbol','quote','fxSource'])
           && request.resource.data.frequency == 'monthly'
           && request.resource.data.adjustment == 'splits-and-dividends'
           && request.resource.data.fxSource == 'ECB'
-          && request.resource.data.providerSymbol == {'vwce':'VWCE.DEX','eunl':'EUNL.DEX','is3n':'IS3N.DEX','sxr8':'SXR8.DEX','novo':'NOVO-B.CPH','msft':'MSFT'}[instrumentId]
+          && ((request.resource.data.source == 'Yahoo Finance'
+              && exists(/databases/$(database)/documents/instrumentRegistry/$(instrumentId))
+              && request.resource.data.providerSymbol == get(/databases/$(database)/documents/instrumentRegistry/$(instrumentId)).data.yahooSymbol
+              && request.resource.data.closeAdjustment == 'splits')
+            || (request.resource.data.source == 'Alpha Vantage' && request.resource.data.providerSymbol == (instrumentId in ['vwce','eunl','is3n','sxr8','novo','msft']
+            ? {'vwce':'VWCE.DEX','eunl':'EUNL.DEX','is3n':'IS3N.DEX','sxr8':'SXR8.DEX','novo':'NOVO-B.CPH','msft':'MSFT'}[instrumentId]
+            : get(/databases/$(database)/documents/instrumentRegistry/$(instrumentId)).data.providerSymbol)))
           && request.resource.data.quote is map
           && request.resource.data.quote.keys().hasAll(['date','close'])
           && request.resource.data.quote.keys().hasOnly(['date','close'])
@@ -90,7 +105,115 @@ service cloud.firestore {
         && request.resource.data.points is list
         && request.resource.data.points.size() > 0 && request.resource.data.points.size() <= 6000
         && validMarketPoint(request.resource.data.points[0], request.resource.data.currency)
-        && validMarketPoint(request.resource.data.points[request.resource.data.points.size() - 1], request.resource.data.currency);
+        && validMarketPoint(request.resource.data.points[request.resource.data.points.size() - 1], request.resource.data.currency)
+        && (!('reportedTrade' in request.resource.data) || validReportedTrade(request.resource.data.reportedTrade, instrumentId));
+      allow list, delete: if false;
+    }
+    match /marketQuotes/{instrumentId} {
+      allow get: if owner() || marketWriter();
+      allow list: if (owner() || marketWriter()) && request.query.limit != null && request.query.limit <= 100;
+      allow create, update: if marketWriter() && validQuote(request.resource.data, instrumentId);
+      allow delete: if false;
+    }
+    function validQuote(v, id) {
+      return v.keys().hasAll(['instrumentId','currency','source','fetchedAt','quote','fxToDkk','fxDate'])
+        && v.keys().hasOnly(['instrumentId','currency','source','providerSymbol','fetchedAt','quote','fxToDkk','fxDate','fxSource'])
+        && v.instrumentId == id
+        && exists(/databases/$(database)/documents/instrumentRegistry/$(id))
+        && v.currency == get(/databases/$(database)/documents/instrumentRegistry/$(id)).data.currency
+        && v.source in ['Yahoo Finance','Alpha Vantage','Twelve Data']
+        && (v.source == 'Twelve Data' || (v.fxSource == 'ECB'
+          && (v.source == 'Yahoo Finance'
+            ? v.providerSymbol == get(/databases/$(database)/documents/instrumentRegistry/$(id)).data.yahooSymbol
+            : v.providerSymbol == get(/databases/$(database)/documents/instrumentRegistry/$(id)).data.providerSymbol)))
+        && v.fetchedAt is string && v.fetchedAt.size() <= 30
+        && v.quote is map && v.quote.keys().hasAll(['date','close']) && v.quote.keys().hasOnly(['date','close'])
+        && v.quote.date is string && v.quote.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && bounded(v.quote.close, 0.000001, 10000000)
+        && v.fxDate is string && v.fxDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && v.fxDate <= v.quote.date
+        && bounded(v.fxToDkk, 0.000001, 100000)
+        && (v.currency != 'DKK' || v.fxToDkk == 1)
+        && (!('fxSource' in v) || v.fxSource == 'ECB');
+    }
+    function validReportedTrade(v, id) {
+      return v is map && v.keys().hasAll(['source','dateTime','close','isin','mic','reportFile','fetchedAt'])
+        && v.keys().hasOnly(['source','dateTime','close','isin','mic','reportFile','fetchedAt','transactionId'])
+        && (!('transactionId' in v) || (v.transactionId is string && v.transactionId.size() > 0 && v.transactionId.size() <= 100))
+        && v.source == 'Nasdaq Nordic' && bounded(v.close, 0.000001, 10000000)
+        && v.dateTime is string && v.fetchedAt is string
+        && v.reportFile is string && v.reportFile.matches('^NordicEquity-posttrade-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{4}$')
+        && exists(/databases/$(database)/documents/instrumentRegistry/$(id))
+        && get(/databases/$(database)/documents/instrumentRegistry/$(id)).data.currency == 'DKK'
+        && v.isin == get(/databases/$(database)/documents/instrumentRegistry/$(id)).data.isin
+        && v.mic == get(/databases/$(database)/documents/instrumentRegistry/$(id)).data.mic;
+    }
+    function validInstrument(v, id) {
+      return v is map && v.id == id && id.matches('^[a-z][a-z0-9-]{0,59}$')
+        && v.keys().hasAll(['id','name','shortName','ticker','exchange','currency','kind','region','description','isin','source','color'])
+        && v.keys().hasOnly(['id','name','shortName','ticker','exchange','currency','kind','region','description','isin','source','color','providerSymbol','sourceKind','mic','yahooSymbol','yahooType','symbolSource','referenceStatus'])
+        && v.name is string && v.name.size() > 0 && v.name.size() <= 160
+        && v.shortName is string && v.shortName.size() > 0 && v.shortName.size() <= 80
+        && v.ticker is string && v.ticker.size() > 0 && v.ticker.size() <= 30
+        && v.currency in ['EUR','USD','DKK'] && v.kind in ['Stock','ETF','Fund']
+        && v.exchange is string && v.region is string && v.description is string && v.description.size() <= 1000
+        && v.isin is string && (v.isin == '' || v.isin.matches('^[A-Z]{2}[A-Z0-9]{9}[0-9]$'))
+        && v.source is string && v.source.matches('^https://.*')
+        && v.color is string && v.color.matches('^#[a-fA-F0-9]{6}$')
+        && (!('providerSymbol' in v) || (v.providerSymbol is string && v.providerSymbol.matches('^[A-Z0-9][A-Z0-9.-]{0,29}$')))
+        && (!('yahooSymbol' in v) || (v.yahooSymbol is string && v.yahooSymbol.matches('^[A-Z0-9][A-Z0-9.-]{0,29}$')))
+        && (!('mic' in v) || (v.mic in ['XCSE','DSME','FNDK'] && v.kind in ['Stock','Fund'] && v.isin != ''))
+        && (!('yahooType' in v) || v.yahooType == 'EQUITY' || (v.yahooType == 'MUTUALFUND' && (('mic' in v && v.kind == 'Stock' && v.sourceKind == 'regulator') || (v.kind == 'Fund' && v.isin != '' && v.sourceKind == 'issuer'))))
+        && (!('symbolSource' in v) || (v.symbolSource is string && v.symbolSource.matches('^https://.*')))
+        && (!('referenceStatus' in v) || v.referenceStatus in ['current','retained'])
+        && (!('sourceKind' in v) || v.sourceKind in ['issuer','provider','regulator']);
+    }
+    match /instrumentRegistry/{id} {
+      allow get: if owner() || marketWriter();
+      allow list: if (owner() || marketWriter()) && request.query.limit != null && request.query.limit <= 100;
+      allow create, update: if marketWriter() && validInstrument(request.resource.data, id);
+      allow delete: if false;
+    }
+    function initialRequest(v, key) {
+      return v.keys().hasOnly([key,'requestedAt','status']) && v.status == 'pending'
+        && v.requestedAt is string && v.requestedAt.size() <= 30;
+    }
+    function completedRequest(v, key) {
+      return v.keys().hasAll([key,'requestedAt','status'])
+        && v.keys().hasOnly([key,'requestedAt','status','completedAt','results'])
+        && v[key] == resource.data[key] && v.requestedAt == resource.data.requestedAt
+        && v.status in ['pending','ready','unavailable','error']
+        && (!('results' in v) || (v.results is list && v.results.size() <= 10))
+        && (!('completedAt' in v) || v.completedAt is string);
+    }
+    match /discoveryRequests/{id} {
+      allow get: if owner() || marketWriter();
+      allow list: if marketWriter() && request.query.limit != null && request.query.limit <= 100;
+      allow create: if owner() && id.matches('^[a-f0-9]{64}$')
+        && initialRequest(request.resource.data, 'query') && request.resource.data.query is string
+        && request.resource.data.query.size() >= 2 && request.resource.data.query.size() <= 80;
+      allow update: if (marketWriter() && completedRequest(request.resource.data, 'query'))
+        || (owner() && resource.data.status != 'pending' && initialRequest(request.resource.data, 'query')
+          && request.resource.data.query == resource.data.query);
+      allow delete: if false;
+    }
+    match /marketRequests/{id} {
+      allow get: if owner() || marketWriter();
+      allow list: if marketWriter() && request.query.limit != null && request.query.limit <= 100;
+      allow create: if owner() && exists(/databases/$(database)/documents/instrumentRegistry/$(id))
+        && initialRequest(request.resource.data, 'instrumentId') && request.resource.data.instrumentId == id;
+      allow update: if (marketWriter() && completedRequest(request.resource.data, 'instrumentId'))
+        || (owner() && resource.data.status != 'pending' && initialRequest(request.resource.data, 'instrumentId')
+          && request.resource.data.instrumentId == id);
+      allow delete: if false;
+    }
+    match /marketSync/budget {
+      allow get: if marketWriter();
+      allow create, update: if marketWriter()
+        && request.resource.data.keys().hasAll(['day','used','lastRequestAt'])
+        && request.resource.data.keys().hasOnly(['day','used','lastRequestAt'])
+        && request.resource.data.day is string && request.resource.data.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.used is int && bounded(request.resource.data.used, 1, 25)
+        && request.resource.data.lastRequestAt is number && request.resource.data.lastRequestAt >= 0;
       allow list, delete: if false;
     }
     // Neither owner nor market writer can change the allowlist or access other paths.

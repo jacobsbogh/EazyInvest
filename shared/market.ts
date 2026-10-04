@@ -1,8 +1,9 @@
 import type { InstrumentId, MarketSeries } from './schema.js';
 import { historicalObservations } from './historical-series.js';
+import { currentQuote, type MarketQuote } from './quote.js';
 
-export function latestQuote(series: MarketSeries | undefined) {
-  return series?.quote ?? series?.points.at(-1);
+export function latestQuote(series: MarketSeries | undefined, quote?: MarketQuote) {
+  return currentQuote(series, quote)?.quote;
 }
 
 // Compare month-end observations by month when every series is monthly. Exchanges

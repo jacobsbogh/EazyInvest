@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Instrument } from '../../shared/catalog.js';
 import { dateSchema, marketSchema } from '../../shared/schema.js';
 import type { FxRates } from './ecb.js';
+import { listingSymbol } from './listings.js';
 
 const positiveString = z
   .string()
@@ -19,14 +20,29 @@ const candidates = {
 } as const;
 
 export class ProviderError extends Error {
-  constructor(public readonly reason: 'coverage' | 'quota' | 'invalid' | 'unavailable') {
-    super(`Provider request failed: ${reason}.`);
+  constructor(
+    public readonly reason: 'coverage' | 'quota' | 'invalid' | 'unavailable',
+    message?: string,
+  ) {
+    super(message ?? `Provider request failed: ${reason}.`);
   }
 }
 
 export function validateListing(input: unknown, instrument: Instrument) {
-  if (!Object.hasOwn(candidates, instrument.id)) throw new ProviderError('coverage');
-  const candidate = candidates[instrument.id as keyof typeof candidates];
+  const symbol = listingSymbol(instrument);
+  if (!symbol) throw new ProviderError('coverage');
+  const candidate = Object.hasOwn(candidates, instrument.id)
+    ? candidates[instrument.id as keyof typeof candidates]
+    : {
+        symbol,
+        region:
+          instrument.currency === 'USD'
+            ? 'United States'
+            : instrument.currency === 'DKK'
+              ? 'Denmark'
+              : 'Germany',
+        words: [instrument.name.toUpperCase().match(/[A-Z0-9]+/)?.[0] ?? instrument.ticker],
+      };
   const response = z
     .object({
       bestMatches: z.array(
@@ -119,6 +135,7 @@ export async function fetchAlphaSeries(
     const url = new URL('https://www.alphavantage.co/query');
     url.search = new URLSearchParams({ ...parameters, apikey: apiKey }).toString();
     const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (response.status === 429) throw new ProviderError('quota');
     if (!response.ok) throw new ProviderError('unavailable');
     const body: unknown = await response.json();
     if (typeof body === 'object' && body !== null) {

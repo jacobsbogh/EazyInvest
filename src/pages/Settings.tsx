@@ -9,7 +9,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { useApp, friendlyError } from '../lib/store';
-import { latestQuote } from '../../shared/market';
+import { currentQuote } from '../../shared/quote';
 import { firebaseConfigured } from '../lib/firebase';
 import { emptyWorkspace, demoWorkspace } from '../lib/demo';
 import { parseWorkspace } from '../../shared/schema';
@@ -18,7 +18,11 @@ import { PageHeading, Field, Modal, Note } from '../components/ui';
 import { download, date } from '../lib/format';
 
 export default function Settings() {
-  const { data, mode, update, saving, notify, market } = useApp();
+  const { data, mode, update, saving, notify, market, quotes } = useApp();
+  const pricing = [...new Set([...Object.keys(market), ...Object.keys(quotes)])].flatMap((id) => {
+    const quote = currentQuote(market[id], quotes[id]);
+    return quote ? [quote] : [];
+  });
   const [name, setName] = useState(data.name);
   const [restore, setRestore] = useState<Workspace | null>(null);
   const [reset, setReset] = useState(false);
@@ -172,12 +176,12 @@ export default function Settings() {
               {
                 label: 'Market data',
                 detail:
-                  mode === 'cloud' && Object.keys(market).length
+                  mode === 'cloud' && pricing.length
                     ? 'Cached provider data available'
                     : mode === 'cloud'
                       ? 'No provider data loaded yet'
                       : 'Generated examples in demo mode',
-                ready: mode === 'cloud' && Object.keys(market).length > 0,
+                ready: mode === 'cloud' && pricing.length > 0,
               },
             ].map((c) => (
               <div className="connection" key={c.label}>
@@ -195,13 +199,13 @@ export default function Settings() {
           </section>
           <section className="card">
             <h3>Data freshness</h3>
-            {Object.values(market).length ? (
+            {pricing.length ? (
               <ul className="freshness-list">
-                {Object.values(market).map((s) => (
+                {pricing.map((s) => (
                   <li key={s!.instrumentId}>
                     <strong>{s!.instrumentId.toUpperCase()}</strong>
                     <span>
-                      {date(latestQuote(s)!.date)}
+                      {date(s.quote.date)}
                       <small>{s!.source === 'demo' ? 'Generated example' : s!.source}</small>
                     </span>
                   </li>

@@ -1,6 +1,6 @@
 import type { Plan, Transaction, InstrumentId, MarketSeries } from './schema.js';
 import { equityTax, tax2026 } from './tax.js';
-import { latestQuote } from './market.js';
+import { currentQuote, type MarketQuote } from './quote.js';
 
 export type ProjectionPoint = {
   year: number;
@@ -91,6 +91,7 @@ export type Position = {
 export function portfolio(
   transactions: Transaction[],
   market: Partial<Record<InstrumentId, MarketSeries>>,
+  quotes: Partial<Record<InstrumentId, MarketQuote>> = {},
 ) {
   const positions = new Map<InstrumentId, Position>();
   let netInvested = 0;
@@ -124,12 +125,11 @@ export function portfolio(
     positions.set(tx.instrumentId, p);
   }
   for (const p of positions.values()) {
-    const quote = market[p.id];
+    const quote = currentQuote(market[p.id], quotes[p.id]);
     if (p.units < 1e-8) p.value = 0;
     else if (quote) {
-      const current = latestQuote(quote)!;
-      p.value = p.units * current.close * quote.fxToDkk;
-      p.quoteDate = current.date;
+      p.value = p.units * quote.quote.close * quote.fxToDkk;
+      p.quoteDate = quote.quote.date;
     }
   }
   const rows = [...positions.values()];

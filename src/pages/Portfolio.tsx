@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { Plus, Download, Upload, Trash2, RefreshCw } from 'lucide-react';
 import { useApp, friendlyError } from '../lib/store';
-import { instruments, getInstrument } from '../../shared/catalog';
 import type { Transaction, InstrumentId } from '../../shared/schema';
 import { transactionSchema, validateLedger } from '../../shared/schema';
 import { portfolio } from '../../shared/finance';
@@ -10,8 +9,20 @@ import { PageHeading, Stat, Empty, Modal, Field, Note } from '../components/ui';
 import { date, money, number, download } from '../lib/format';
 
 export default function Portfolio() {
-  const { data, market, mode, update, saving, notify, refreshMarket, refreshing } = useApp();
-  const holdings = portfolio(data.transactions, market);
+  const {
+    data,
+    market,
+    quotes,
+    mode,
+    update,
+    saving,
+    notify,
+    refreshMarket,
+    refreshing,
+    instruments,
+    getInstrument,
+  } = useApp();
+  const holdings = portfolio(data.transactions, market, quotes);
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [preview, setPreview] = useState<Transaction[] | null>(null);
@@ -20,7 +31,7 @@ export default function Portfolio() {
     if (!file) return;
     try {
       if (file.size > 1_000_000) throw new Error('Choose a CSV smaller than 1 MB.');
-      setPreview(importTransactions(await file.text(), data.transactions));
+      setPreview(importTransactions(await file.text(), data.transactions, instruments));
     } catch (err) {
       notify(friendlyError(err));
     } finally {
@@ -354,7 +365,7 @@ export default function Portfolio() {
   );
 }
 function TransactionForm({ onClose }: { onClose: () => void }) {
-  const { update, saving, notify, market } = useApp();
+  const { update, saving, notify, market, instruments, getInstrument } = useApp();
   const [instrumentId, setInstrument] = useState<InstrumentId>('vwce');
   const [error, setError] = useState('');
   const [type, setType] = useState<Transaction['type']>('buy');

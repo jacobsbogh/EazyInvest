@@ -962,6 +962,9 @@ textarea:focus-visible {
   border-top: 1px solid #e8ebe3;
   padding: 18px 0;
 }
+.block {
+  display: block;
+}
 @media (max-width: 800px) {
   .exposure-grid {
     grid-template-columns: minmax(0, 1fr);

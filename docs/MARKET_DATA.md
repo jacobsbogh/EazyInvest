@@ -45,3 +45,9 @@ Explore defaults to 20 years and DKK, with shorter/full-history choices and a tr
 The historical saving simulator applies fixed month-end DKK contributions over a selected continuous period. It separately shows contributed money, ending historical value and gain/loss. The current UTC month is excluded; no prices or exchange rates are filled in. See [the calculation specification](CALCULATIONS.md) for exact timing and assumptions.
 
 Legacy Twelve Data caches can still be read with their original price-only labels. That adapter is retained for compatibility, but the active workflow uses Alpha Vantage exclusively.
+
+## Verified historical FX enrichment
+
+On 2026-10-04, [the enrichment workflow](https://github.com/jacobsbogh/EazyInvest/actions/runs/37167178086) at commit `3c33474` added dated ECB rates to all 959 observations across the five available listings. Existing recent price histories, current quotes, valuation FX and price retrieval timestamps were preserved. No additional Alpha Vantage history requests were needed; Novo B remained unavailable.
+
+All five caches passed the shared schema and produced DKK analysis. With October's partial observation excluded, MSFT had 322 completed monthly observations and 82 rolling 20-year windows. VWCE's 86 completed observations supported 26 rolling five-year windows; the app correctly showed longer periods as unavailable. ECB's downloaded daily history began on 1999-01-04 and covered every available listing's first observation.

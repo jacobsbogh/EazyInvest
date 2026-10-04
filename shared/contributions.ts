@@ -79,7 +79,7 @@ export type ContributionMonth = {
   orders: ContributionOrder[];
   issue: string | null;
 };
-const ceilCents = (n: number) => Math.ceil(n * 100 - 1e-7);
+const ceilCents = (n: number) => (n === 0 ? 0 : Math.max(1, Math.ceil(n * 100 - 1e-7)));
 const cents = (n: number) => Math.round(n * 100);
 function apportion(total: number, weights: number[]): number[] {
   const sum = weights.reduce((a, b) => a + b, 0);

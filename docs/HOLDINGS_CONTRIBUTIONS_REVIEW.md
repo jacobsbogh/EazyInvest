@@ -35,9 +35,12 @@ transaction counts. Axe audits and actual card bounds cover both new screens.
 The tables scroll within labelled keyboard-accessible regions. Visual review
 checks mobile and desktop renders; no additional initial holdings download occurs.
 
-Local validation passes: frontend/job builds, 171 unit tests, all 34 demo browser
+Visual review also caught negative-zero formatting in zero FX reserves; zero costs
+now remain positive zero and tiny positive reserves require at least one øre.
+
+Local validation passes: frontend/job builds, 172 unit tests, all 34 demo browser
 tests and formatting. Before merge, require CI's additional 12 backend integration,
-17 rules and 12 signed-in browser tests (246 tests total). Publication
+17 rules and 12 signed-in browser tests (247 tests total). Publication
 follows the reviewed merge and receives public desktop/mobile verification.
 No remaining merge-blocking finding; broader holdings coverage and a full cash
 account/portfolio-performance model remain separate follow-up work.

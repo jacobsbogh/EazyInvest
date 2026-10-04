@@ -57,6 +57,10 @@ test('uses real dated holdings, shows direct-share overlap and leaves gaps expli
   const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(audit.violations.map((v) => v.id)).toEqual([]);
   await bounds(page);
+  await page.evaluate(() => {
+    (document.activeElement as HTMLElement)?.blur();
+    window.scrollTo(0, 0);
+  });
   await page.screenshot({ path: testInfo.outputPath('holdings-ready.png'), fullPage: true });
 });
 
@@ -115,6 +119,10 @@ test('plans whole units, preserves cash, saves a budget and exports costs withou
   const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(audit.violations.map((v) => v.id)).toEqual([]);
   await bounds(page);
+  await page.evaluate(() => {
+    (document.activeElement as HTMLElement)?.blur();
+    window.scrollTo(0, 0);
+  });
   await page.screenshot({ path: testInfo.outputPath('contributions-ready.png'), fullPage: true });
   await page.goto('/#/portfolio');
   await expect(page.locator('.transactions-card tbody tr')).toHaveCount(2);

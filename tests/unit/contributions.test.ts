@@ -96,6 +96,18 @@ describe('cash-bounded manual contribution worksheets', () => {
     expect(p.fees).toBe(0);
     expect(p.closingCash).toBe(10);
   });
+  it('reports zero conversion without a minus sign and reserves an øre for a positive tiny cost', () => {
+    const normal = run()[0];
+    expect(Object.is(normal.orders[1].fxCost, 0)).toBe(true);
+    const tiny = run(
+      { monthly: 0.01 },
+      inputs.map((i) => ({ ...i, priceDkk: 1e-15 })),
+    )[0];
+    expect(tiny.orders[0].quantity).toBeGreaterThan(0);
+    expect(tiny.orders[0].notional).toBe(0.01);
+    expect(tiny.spent).toBe(0.01);
+    expect(tiny.closingCash).toBe(0);
+  });
   it('distributes leftover cents deterministically and conserves cash for all months', () => {
     const p = run({ monthly: 0.01, months: 12, minimumFee: 10 });
     expect(p[0].orders.map((o) => o.budget)).toEqual([0.01, 0]);

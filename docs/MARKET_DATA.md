@@ -24,7 +24,7 @@ For each catalog instrument, `SYMBOL_SEARCH` must identify the exact candidate l
 
 `TIME_SERIES_MONTHLY_ADJUSTED` requests the full available history. The provider documents 25+ years, subject to the security's listing history and coverage. Stored observations retain their actual dates, raw closes and adjusted closes, including a partial latest month when returned. `GLOBAL_QUOTE` supplies a separate latest end-of-day price for holdings valuation. There are no requests to premium daily-history or realtime endpoints. A provider paywall, unavailable listing or missing data never activates a purchase or generates prices.
 
-ECB quotes currencies per euro. The conversion is DKK/EUR for EUR, `(DKK/EUR) / (USD/EUR)` for USD, and 1 for DKK. Its reference date is stored separately. These are indicative valuation rates, not broker rates. Historical DKK returns are a later feature.
+ECB quotes currencies per euro. The conversion is DKK/EUR for EUR, `(DKK/EUR) / (USD/EUR)` for USD, and 1 for DKK. The updater fetches its full daily reference history once per run and stores each close's rate and reference date. It chooses the latest reference on or before the close, at most seven calendar days earlier. Missing rates remain missing. The latest reference rate and date stay separate for present holdings valuation. These are indicative reference rates, not broker rates.
 
 ## Setup and operation
 
@@ -34,12 +34,14 @@ ECB quotes currencies per euro. The conversion is DKK/EUR for EUR, `(DKK/EUR) / 
 4. Set repository variable `MARKET_SYNC_ENABLED=true` after the first import is verified. The workflow is present at `.github/workflows/market-data.yml`. Its Tuesday–Saturday 05:37 UTC schedule follows the previous weekday's closing prices. GitHub may delay or disable inactive public-repository schedules.
 5. Sign in to the app, open Explore and press **Refresh data** to read the saved cache. The app never calls the provider or starts the workflow.
 
-The current free provider limit is [25 requests per day](https://www.alphavantage.co/premium/). A run makes at most 18 requests, spaced by thirteen seconds, plus one free ECB request. Supported recent caches are reused. Unsupported listings cost a search request and remain missing. Provider limit responses stop the run; other invalid responses retain the prior cache. Manual retries share the same daily allowance and do not reset it. Workflows are serialized and time-limited.
+The current free provider limit is [25 requests per day](https://www.alphavantage.co/premium/). A run makes at most 18 requests, spaced by thirteen seconds, plus one free ECB request. Supported recent caches are reused; existing valid recent histories can acquire dated FX without consuming Alpha Vantage credits or changing their price retrieval timestamp. Unsupported listings cost a search request and remain missing. Provider limit responses stop the run; other invalid responses retain the prior cache. Manual retries share the same daily allowance and do not reset it. Workflows are serialized and time-limited.
 
 The owner account, market cache and provider key remain private. Only public Firebase web configuration belongs in `VITE_` build variables. Do not commit quotes, financial backups, account emails, passwords or provider keys. The source is for private individual analysis under [Alpha Vantage's personal-use terms](https://www.alphavantage.co/terms_of_service/), not redistribution of the fetched dataset.
 
 ## Historical analysis
 
-Explore defaults to 20 years, with shorter and full-history choices. The app shows the actual range and observation count. A younger fund cannot have 20 years of its own prices. Monthly adjusted closes support long-term return/drawdown comparisons; monthly observations may miss deeper falls within a month. Comparisons use trading currencies and overlapping months only. They do not show the owner's DKK return or forecast future returns.
+Explore defaults to 20 years and DKK, with shorter/full-history choices and a trading-currency switch. The app shows the actual range and observation count. A younger fund cannot have 20 years of its own prices. Monthly adjusted closes support long-term return/drawdown comparisons; monthly observations may miss deeper falls within a month. Comparisons use overlapping months only. Holding-period statistics use all available primary-investment history, with annualized returns, partial/calendar years and completed rolling 5/10/20-year windows. Their observed loss share is not a forecast.
+
+The historical saving simulator applies fixed month-end DKK contributions over a selected continuous period. It separately shows contributed money, ending historical value and gain/loss. The current UTC month is excluded; no prices or exchange rates are filled in. See [the calculation specification](CALCULATIONS.md) for exact timing and assumptions.
 
 Legacy Twelve Data caches can still be read with their original price-only labels. That adapter is retained for compatibility, but the active workflow uses Alpha Vantage exclusively.

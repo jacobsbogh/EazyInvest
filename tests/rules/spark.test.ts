@@ -106,6 +106,35 @@ describe('Spark owner and market-writer boundaries', () => {
       await assertFails(setDoc(doc(db, 'config/access'), { ownerUid: uid, marketWriterUid: uid }));
     }
   });
+  it('accepts dated FX or legacy endpoints and rejects incomplete or invalid FX pairs', async () => {
+    const db = env.authenticatedContext('writer').firestore();
+    const ref = doc(db, 'market/vwce');
+    const valid = market();
+    await assertSucceeds(setDoc(ref, valid));
+    const legacy = {
+      ...valid,
+      points: valid.points.map(({ fxToDkk: _fx, fxDate: _date, ...point }) => point),
+    };
+    await assertSucceeds(setDoc(ref, legacy));
+    for (const endpoint of [0, valid.points.length - 1]) {
+      for (const change of [{ fxDate: null }, { fxToDkk: -1 }, { fxToDkk: '7.46' }]) {
+        const points = valid.points.map((point, index) =>
+          index === endpoint ? { ...point, ...change } : point,
+        );
+        await assertFails(setDoc(ref, { ...valid, points }));
+      }
+    }
+    const native = { ...demoMarket().novo, source: 'Twelve Data' };
+    await assertSucceeds(setDoc(doc(db, 'market/novo'), native));
+    await assertFails(
+      setDoc(doc(db, 'market/novo'), {
+        ...native,
+        points: native.points.map((point, index) =>
+          index === 0 ? { ...point, fxToDkk: 2 } : point,
+        ),
+      }),
+    );
+  });
   it('accepts verified monthly history only with the exact listing, currency and separate quote', async () => {
     const db = env.authenticatedContext('writer').firestore();
     const monthly = {

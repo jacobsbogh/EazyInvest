@@ -4,7 +4,7 @@ import { getFirestore, doc, getDocFromServer, setDoc, terminate } from 'firebase
 import { instrumentIds, marketSchema } from '../../shared/schema.js';
 import { getInstrument } from '../../shared/catalog.js';
 import { fetchAlphaSeries, ProviderError } from './alpha-vantage.js';
-import { fetchEcbRates } from './ecb.js';
+import { fetchEcbHistory, withHistoricalFx } from './ecb.js';
 
 async function main() {
   const required = [
@@ -36,7 +36,8 @@ async function main() {
       process.env.MARKET_SYNC_EMAIL!,
       process.env.MARKET_SYNC_PASSWORD!,
     );
-    const fx = await fetchEcbRates();
+    const fxHistory = await fetchEcbHistory();
+    const fx = fxHistory.at(-1)!;
     for (const id of instrumentIds) {
       try {
         const ref = doc(db, 'market', id);
@@ -49,11 +50,17 @@ async function main() {
           Date.now() - Date.parse(parsed.data.fetchedAt) >= 0 &&
           Date.now() - Date.parse(parsed.data.fetchedAt) < 72000000
         ) {
-          console.log(`${id}: recent cache retained`);
+          const backfilled = withHistoricalFx(parsed.data, fxHistory);
+          if (JSON.stringify(backfilled.points) !== JSON.stringify(parsed.data.points)) {
+            // A recent valid provider cache needs no Alpha Vantage requests to
+            // acquire dated FX. Keep its original fetchedAt and current quote.
+            await setDoc(ref, backfilled);
+            console.log(`${id}: recent cache backfilled with historical ECB FX`);
+          } else console.log(`${id}: recent cache retained`);
           updated++;
           continue;
         }
-        const series = await fetchAlphaSeries(
+        const fetched = await fetchAlphaSeries(
           getInstrument(id),
           process.env.ALPHA_VANTAGE_API_KEY!,
           fx,
@@ -65,6 +72,7 @@ async function main() {
             lastRequest = Date.now();
           },
         );
+        const series = withHistoricalFx(fetched, fxHistory);
         await setDoc(ref, series);
         updated++;
         console.log(

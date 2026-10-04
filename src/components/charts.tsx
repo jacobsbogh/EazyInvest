@@ -110,23 +110,19 @@ export function PriceChart({
   keys,
   currency = false,
   adjusted = false,
+  unit = 'trading currency',
 }: {
   data: Record<string, number | string>[];
   keys: { id: string; name: string; color: string }[];
   currency?: boolean;
   adjusted?: boolean;
+  unit?: string;
 }) {
   return (
     <div
       className="chart price-chart"
       role="img"
-      aria-label={
-        adjusted
-          ? 'Adjusted historical returns accounting for splits and dividends'
-          : currency
-            ? 'Price history chart in the trading currency'
-            : 'Price comparison indexed to 100 at the first common date'
-      }
+      aria-label={`${adjusted ? 'Adjusted history accounting for splits and dividends' : 'Price history'} ${currency ? `in ${unit}` : `indexed to 100 at the first common observation (${unit})`}`}
     >
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
@@ -148,7 +144,7 @@ export function PriceChart({
             tick={{ fill: '#7b8278', fontSize: 11 }}
           />
           <Tooltip
-            formatter={(value) => number(Number(value))}
+            formatter={(value) => `${number(Number(value))}${currency ? ` ${unit}` : ' (index)'}`}
             contentStyle={{ borderRadius: 12, borderColor: grid }}
           />
           {keys.map((key) => (

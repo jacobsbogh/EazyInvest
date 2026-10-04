@@ -1,4 +1,5 @@
 import type { InstrumentId, MarketSeries } from './schema.js';
+import { historicalObservations } from './historical-series.js';
 
 export function latestQuote(series: MarketSeries | undefined) {
   return series?.quote ?? series?.points.at(-1);
@@ -10,18 +11,31 @@ export function historicalComparison(
   market: Partial<Record<InstrumentId, MarketSeries>>,
   selected: InstrumentId[],
   years: number | 'all',
+  currency: 'native' | 'DKK' = 'native',
 ) {
-  const available = selected.filter((id) => market[id]);
+  const observations = new Map(
+    selected.map((id) => [id, historicalObservations(market[id], currency)]),
+  );
+  const available = selected.filter((id) => observations.get(id)!.points.length > 0);
+  const missingFx = selected.some((id) => observations.get(id)!.missingFx);
   const monthly =
     available.length > 0 && available.every((id) => market[id]!.frequency === 'monthly');
-  const adjusted =
-    available.length > 0 &&
-    available.every((id) => market[id]!.adjustment === 'splits-and-dividends');
+  const adjusted = available.length > 0 && available.every((id) => observations.get(id)!.adjusted);
+  // Preserve one honest basis for the whole comparison. A legacy price-only
+  // series cannot be compared with adjusted levels under a price-only label.
+  const comparisonObservations = new Map(
+    available.map((id) => [
+      id,
+      adjusted
+        ? observations.get(id)!
+        : historicalObservations({ ...market[id]!, adjustment: undefined }, currency),
+    ]),
+  );
   const key = (day: string) => (monthly ? day.slice(0, 7) : day);
   const prices = new Map(
     available.map((id) => [
       id,
-      new Map(market[id]!.points.map((p) => [key(p.date), adjusted ? p.adjustedClose! : p.close])),
+      new Map(comparisonObservations.get(id)!.points.map((p) => [key(p.date), p.value])),
     ]),
   );
   const common = [...(prices.get(available[0])?.keys() ?? [])].filter((day) =>
@@ -41,10 +55,11 @@ export function historicalComparison(
     ]),
   );
   const points = dates.length
-    ? (market[selected[0]]?.points
-        .filter((p) => key(p.date) >= (dates[0] ?? cutoff))
+    ? (comparisonObservations
+        .get(selected[0])
+        ?.points.filter((p) => key(p.date) >= (dates[0] ?? cutoff))
         .filter((p) => !end || key(p.date) <= end)
-        .map((p) => ({ date: p.date, close: adjusted ? p.adjustedClose! : p.close })) ?? [])
+        .map((p) => ({ date: p.date, close: p.value })) ?? [])
     : [];
-  return { available, monthly, adjusted, dates, data, points };
+  return { available, monthly, adjusted, missingFx, dates, data, points };
 }

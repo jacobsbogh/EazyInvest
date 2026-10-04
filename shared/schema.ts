@@ -56,11 +56,31 @@ export const storedSchema = z.object({
   revision: z.number().int().nonnegative(),
   data: workspaceSchema,
 });
-const marketPointSchema = z.object({
-  date: dateSchema,
-  close: z.number().finite().positive(),
-  adjustedClose: z.number().finite().positive().optional(),
-});
+const marketPointSchema = z
+  .object({
+    date: dateSchema,
+    close: z.number().finite().positive(),
+    adjustedClose: z.number().finite().positive().optional(),
+    // DKK per one unit of the listing currency, observed on or before this close.
+    // Optional so existing caches remain readable while the updater backfills FX.
+    fxToDkk: z.number().finite().positive().optional(),
+    fxDate: dateSchema.optional(),
+  })
+  .superRefine((point, context) => {
+    if ((point.fxToDkk === undefined) !== (point.fxDate === undefined))
+      context.addIssue({
+        code: 'custom',
+        message: 'Historical FX requires a rate and observation date.',
+      });
+    if (point.fxDate !== undefined) {
+      const age = Date.parse(point.date) - Date.parse(point.fxDate);
+      if (age < 0 || age > 7 * 86400000)
+        context.addIssue({
+          code: 'custom',
+          message: 'Historical FX must precede the close by at most seven days.',
+        });
+    }
+  });
 export const marketSchema = z
   .object({
     instrumentId: instrumentIdSchema,
@@ -77,6 +97,14 @@ export const marketSchema = z
     fxSource: z.literal('ECB').optional(),
   })
   .superRefine((series, context) => {
+    if (
+      series.currency === 'DKK' &&
+      series.points.some((point) => point.fxToDkk !== undefined && point.fxToDkk !== 1)
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'DKK history uses identity currency conversion.',
+      });
     if (series.points.some((point, i) => i > 0 && point.date <= series.points[i - 1].date))
       context.addIssue({ code: 'custom', message: 'Market dates must be unique and ascending.' });
     if (

@@ -9,8 +9,6 @@
 
 ## Highest-value product improvements
 
-- Extend historical analysis with annualized returns and rolling holding-period results, with independently calculated test fixtures. Do not infer future probabilities from past results.
-- Add historical DKK returns using dated FX observations; current reference FX is used only for present holdings valuation.
 - Research separately labelled market benchmarks for periods predating the catalog ETFs. Never extend a fund's history with another investment's data.
 - Add a year-versioned importer for the official SKAT equity-investment-company list with exact ISIN matching, provenance, a review step, and a status for missing/unverified data. Membership is not a recommendation.
 - Add transaction editing with the same complete-ledger validation as import and deletion, plus an audit trail.
@@ -28,3 +26,5 @@
 ## Implemented in the initial build
 
 Dashboard; deterministic planner; ASK and share-income illustrations; catalog and comparisons; watchlist notes; validated DKK ledger; CSV and JSON backups; six lessons; responsive layouts; email/password sign-in; Spark Firestore transactions and revision rules; isolated market-writer implementation; optional GitHub Actions price-update template; unit/rule/browser tests; CI and manual Pages publication.
+
+Historical analysis extensions: dated ECB FX and DKK/trading-currency views; full-history annualized and calendar-year returns; completed rolling 5/10/20-year holding periods; historical monthly saving with separate contributions and gains. Independent numerical fixtures and combined currency/UI tests cover the calculations.

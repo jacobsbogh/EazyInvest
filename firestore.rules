@@ -12,6 +12,22 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/config/access).data.marketWriterUid == request.auth.uid;
     }
     function bounded(value, min, max) { return value is number && value >= min && value <= max; }
+    // The trusted market job validates every dated observation. Rules also check
+    // the endpoint maps while accepting legacy caches without historical FX.
+    function validMarketPoint(p, currency) {
+      return p is map
+        && p.keys().hasAll(['date','close'])
+        && p.keys().hasOnly(['date','close','adjustedClose','fxToDkk','fxDate'])
+        && p.date is string && p.date.size() == 10
+        && bounded(p.close, 0.000001, 10000000)
+        && (!('adjustedClose' in p) || bounded(p.adjustedClose, 0.000001, 10000000))
+        && (!p.keys().hasAny(['fxToDkk','fxDate']) || (
+          p.keys().hasAll(['fxToDkk','fxDate'])
+          && bounded(p.fxToDkk, 0.000001, 100000)
+          && p.fxDate is string && p.fxDate.size() == 10
+          && (currency != 'DKK' || p.fxToDkk == 1)
+        ));
+    }
     function validPlan(p) {
       return p is map
         && p.keys().hasAll(['initial','monthly','years','returnRate','fee','inflation','goal','account','realTerms','married'])
@@ -72,7 +88,9 @@ service cloud.firestore {
         && request.resource.data.fetchedAt is string && request.resource.data.fxDate is string
         && bounded(request.resource.data.fxToDkk, 0.000001, 100000)
         && request.resource.data.points is list
-        && request.resource.data.points.size() > 0 && request.resource.data.points.size() <= 6000;
+        && request.resource.data.points.size() > 0 && request.resource.data.points.size() <= 6000
+        && validMarketPoint(request.resource.data.points[0], request.resource.data.currency)
+        && validMarketPoint(request.resource.data.points[request.resource.data.points.size() - 1], request.resource.data.currency);
       allow list, delete: if false;
     }
     // Neither owner nor market writer can change the allowlist or access other paths.

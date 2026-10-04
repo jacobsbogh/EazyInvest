@@ -25,7 +25,8 @@ Without `.env.local`, choose **Explore the demo**. Generated example prices and 
 - DKK buy/sell/dividend ledger with average purchase cost, historical transaction FX, gains, reviewed CSV imports and JSON backups.
 - Six investing lessons and 2026 Danish tax calculators with official SKAT sources.
 - Email/password owner sign-in, private Firestore transactions, revision conflict protection and responsive layouts.
-- Historical analysis with 1/3/5/10/20-year and full-history views, adjusted monthly returns, available-history dates and overlapping-period comparisons.
+- Historical analysis in DKK or trading currency, with 1/3/5/10/20-year and full-history views, dated ECB FX, annualized and calendar-year returns, and rolling 5/10/20-year holding periods.
+- Historical monthly saving in DKK, with selectable dates and separate contributions, investment value and gain/loss.
 - Free GitHub Actions market job: credentials remain in Actions secrets, and a restricted writer cannot read your portfolio.
 
 The catalog is a starting universe, not a buy list. Fund classification and SKAT positivliste membership are explicitly unverified. Alpha Vantage history uses provider closes adjusted for splits/dividends; current holdings use separate unadjusted quotes. Monthly sampling can miss larger falls between observations. Each fund/listing has its own available history. Free coverage is checked against the exact symbol, venue, currency and security type; unsupported listings remain missing.

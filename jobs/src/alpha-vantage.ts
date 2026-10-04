@@ -25,7 +25,8 @@ export class ProviderError extends Error {
 }
 
 export function validateListing(input: unknown, instrument: Instrument) {
-  const candidate = candidates[instrument.id];
+  if (!Object.hasOwn(candidates, instrument.id)) throw new ProviderError('coverage');
+  const candidate = candidates[instrument.id as keyof typeof candidates];
   const response = z
     .object({
       bestMatches: z.array(

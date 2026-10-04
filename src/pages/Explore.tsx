@@ -6,6 +6,9 @@ import { instruments, getInstrument } from '../../shared/catalog';
 import type { InstrumentId } from '../../shared/schema';
 import { maxDrawdown } from '../../shared/finance';
 import { historicalComparison, latestQuote } from '../../shared/market';
+import { historicalObservations } from '../../shared/historical-series';
+import { HoldingPeriodAnalysis } from '../components/HoldingPeriodAnalysis';
+import { HistoricalSavings } from '../components/HistoricalSavings';
 import { PageHeading, Empty, Note, Field } from '../components/ui';
 import { PriceChart } from '../components/charts';
 import { date, number, percent } from '../lib/format';
@@ -21,6 +24,7 @@ export default function Explore() {
   const [filter, setFilter] = useState('All investments');
   const [compare, setCompare] = useState<InstrumentId[]>([]);
   const [years, setYears] = useState<number | 'all'>(20);
+  const [analysisCurrency, setAnalysisCurrency] = useState<'native' | 'DKK'>('DKK');
   const item = getInstrument(selected);
   const series = market[selected];
   const watch = data.watchlist.find((w) => w.instrumentId === selected);
@@ -40,7 +44,10 @@ export default function Explore() {
     adjusted,
     data: chartData,
     points,
-  } = historicalComparison(market, selectedIds, years);
+  } = historicalComparison(market, selectedIds, years, analysisCurrency);
+  const fullHistory = historicalObservations(series, analysisCurrency);
+  const dkkHistory = historicalObservations(series, 'DKK');
+  const chartCurrency = analysisCurrency === 'DKK' ? 'DKK' : item.currency;
   const last = latestQuote(series);
   const historyLast = points.at(-1);
   const first = points[0];
@@ -179,7 +186,7 @@ export default function Explore() {
               <p>
                 {available.length > 1
                   ? `${adjusted ? 'Adjusted return' : 'Price change'} indexed to 100 · common ${monthly ? 'months' : 'dates'} only`
-                  : `${adjusted ? 'Adjusted monthly history' : 'Price history'} in ${item.currency}`}
+                  : `${adjusted ? 'Adjusted monthly history' : 'Price history'} in ${chartCurrency}`}
               </p>
             </div>
             <div className="segmented" aria-label="Chart time range">
@@ -195,6 +202,25 @@ export default function Explore() {
               ))}
             </div>
           </div>
+          <div className="history-currency-controls" role="group" aria-label="Analysis currency">
+            <span>View returns in</span>
+            <div className="segmented">
+              <button
+                aria-pressed={analysisCurrency === 'DKK'}
+                className={analysisCurrency === 'DKK' ? 'active' : ''}
+                onClick={() => setAnalysisCurrency('DKK')}
+              >
+                DKK
+              </button>
+              <button
+                aria-pressed={analysisCurrency === 'native'}
+                className={analysisCurrency === 'native' ? 'active' : ''}
+                onClick={() => setAnalysisCurrency('native')}
+              >
+                Trading currency
+              </button>
+            </div>
+          </div>
           {series ? (
             <>
               <div className="detail-metrics">
@@ -205,7 +231,9 @@ export default function Explore() {
                   </strong>
                 </div>
                 <div>
-                  <span>{adjusted ? 'Period adjusted return' : 'Period price change'}</span>
+                  <span>
+                    {adjusted ? 'Period adjusted return' : 'Period price change'} · {chartCurrency}
+                  </span>
                   <strong>
                     {first && historyLast ? percent(historyLast.close / first.close - 1) : '—'}
                   </strong>
@@ -217,7 +245,22 @@ export default function Explore() {
                   </strong>
                 </div>
               </div>
-              {chartData.length ? (
+              {fullHistory.missingFx ? (
+                <Empty
+                  title="Historical DKK conversion unavailable"
+                  action={
+                    <button
+                      className="button secondary"
+                      onClick={() => setAnalysisCurrency('native')}
+                    >
+                      View trading currency
+                    </button>
+                  }
+                >
+                  Dated exchange rates are missing for this cached history. Load an updated market
+                  cache to analyze it in DKK.
+                </Empty>
+              ) : chartData.length ? (
                 <PriceChart
                   data={chartData}
                   keys={available.map((id) => ({
@@ -227,6 +270,13 @@ export default function Explore() {
                   }))}
                   currency={available.length === 1}
                   adjusted={adjusted}
+                  unit={
+                    analysisCurrency === 'DKK'
+                      ? 'DKK'
+                      : available.length === 1
+                        ? item.currency
+                        : 'trading currencies'
+                  }
                 />
               ) : (
                 <Empty title="No overlapping history">
@@ -280,9 +330,10 @@ export default function Explore() {
                 </label>
               ))}
           </div>
-          {selectedIds.some((id) => !market[id]) && (
+          {selectedIds.some((id) => !available.includes(id)) && (
             <p className="muted text-small">
-              Some selected investments have no data and cannot appear in the comparison.
+              Some selected investments have no usable history in this currency and cannot appear in
+              the comparison.
             </p>
           )}
           <Note>
@@ -291,8 +342,10 @@ export default function Explore() {
               : adjusted
                 ? 'Historical returns use provider adjusted closes, accounting for splits and dividends. Latest prices used for holdings are separate, unadjusted quotes. Returns are before personal taxes and trading costs.'
                 : 'Provider price history excludes dividends and is not total return. Provider adjustments and available history may differ by exchange.'}{' '}
-            Comparisons use trading currencies, so they do not show your DKK return. Drawdown is
-            measured only at the available observations.
+            {analysisCurrency === 'DKK'
+              ? 'DKK returns include currency movements using dated reference FX, before broker conversion costs.'
+              : 'Comparisons use trading currencies, so they do not show your DKK return.'}{' '}
+            Drawdown is measured only at the available observations.
           </Note>
           {series && (
             <div className="source-line">
@@ -383,6 +436,31 @@ export default function Explore() {
             )}
           </section>
         </aside>
+      </div>
+      <div className="history-analysis-grid">
+        <HoldingPeriodAnalysis
+          key={`${selected}-${analysisCurrency}`}
+          points={fullHistory.points}
+          currency={fullHistory.currency}
+          adjusted={fullHistory.adjusted}
+          demo={mode === 'demo'}
+          unavailableReason={
+            fullHistory.missingFx
+              ? 'Dated exchange rates are missing. Switch to trading currency or load an updated market cache.'
+              : undefined
+          }
+        />
+        <HistoricalSavings
+          key={selected}
+          points={dkkHistory.points}
+          adjusted={dkkHistory.adjusted}
+          demo={mode === 'demo'}
+          unavailableReason={
+            dkkHistory.missingFx
+              ? 'Dated exchange rates are missing for this investment. Load an updated market cache to simulate saving in DKK.'
+              : undefined
+          }
+        />
       </div>
     </>
   );

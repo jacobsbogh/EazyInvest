@@ -42,8 +42,26 @@ If any held position lacks a market quote, aggregate value and profit are unavai
 
 ## Historical comparisons
 
-Single-instrument charts show historical closes in trading currency. Alpha Vantage monthly observations retain both raw close and provider adjusted close. When all loaded selections have the split/dividend adjustment metadata, charts, period returns and drawdowns use adjusted closes. The latest unadjusted quote is used for the price table and holdings valuation, never as an extra adjusted history point. Legacy unadjusted data and demo data remain price comparisons. Personal tax, dealing costs and historical DKK FX are excluded from comparisons.
+Single-instrument charts default to DKK, with a trading-currency switch. Alpha Vantage monthly observations retain both raw close and provider adjusted close. When all usable selections have split/dividend adjustment metadata, charts, period returns and drawdowns use adjusted closes; mixed adjusted/price-only comparisons use raw closes for every selection. The latest unadjusted quote is used for the price table and holdings valuation, never as an extra adjusted history point. Legacy unadjusted data and demo data remain price comparisons. Personal tax and dealing costs are excluded.
+
+For DKK analysis, each historical value is multiplied by its own dated DKK-per-trading-currency reference rate. The job reads the free ECB daily history: EUR uses DKK/EUR; USD uses (DKK/EUR)/(USD/EUR); native DKK uses 1. It selects the latest reference date on or before the observation, at most seven calendar days earlier. Rates after the close, today's rate, interpolation and unbounded holiday fallback are never used. Missing historical FX makes DKK analysis unavailable while native-currency analysis remains available. Existing price caches remain readable and can be enriched by the updater. Demo FX is generated and labelled as such.
 
 Multi-instrument comparisons normalize the first common observation to 100. Monthly series align by calendar month because exchanges can have different final trading days; daily/legacy series align by exact date. Only overlapping observations are charted. No interpolation, pre-launch backfill, alternate listing or benchmark splice is performed. Metrics for the primary selection use its observations within the displayed common period; no overlap produces an empty chart and unavailable metrics. Missing selected series are disclosed and excluded.
 
 The default window is 20 years ending at the latest common observation, with 1/3/5/10/20-year and full available-history choices. The displayed start/end and count describe the actual data, which can be shorter than the selected window. Drawdown is the largest observed peak-to-trough decline in that window. Monthly sampling can understate losses between observations, and provider adjustments can be revised. The demo remains clearly labelled generated data.
+
+## Holding-period analysis
+
+These results use the primary investment's full available history in the chosen currency, independently of the chart range and comparison dates. Total return is `end / start − 1`. Annualized return is `(end / start)^(365.25 / elapsed UTC days) − 1`, with at least one calendar year required. Unsupported or nonfinite results are unavailable.
+
+Full calendar-year returns use the previous December observation and the completed December observation. Current-year results with that baseline are labelled year to date. Missing baselines or year ends produce explicitly partial years. The current partial month's actual observation may enter the headline and year-to-date return.
+
+Rolling 5/10/20-year returns require respectively 61/121/241 consecutive completed monthly endpoints: exactly 60/120/240 month differences. The current UTC month is excluded. Missing months break a window; no younger fund is extrapolated. The table reports window count, best/worst annualized returns with dates and observed loss share. Windows overlap, so loss share is a historical observation, not a future probability.
+
+## Historical monthly saving
+
+The simulator uses full available DKK observations, independently of the chart's currency/range/comparisons. Its selected start and end months must have completed observations, and every intermediate month must be present. The current UTC month is excluded. Start/end dates show the actual observed closes.
+
+The initial investment and first monthly contribution enter at the first selected close. At each later close, multiply the existing balance by the ratio of current to previous DKK return-series values, then add that month's fixed DKK contribution. This assumes fractional exposure. For three adjusted closes of 100 with historical FX 6, 7 and 8, three DKK 1,000 deposits finish at `1000 × 8/6 + 1000 × 8/7 + 1000 = 3476.19`; contributions are DKK 3,000 and gain is DKK 476.19.
+
+Provider adjusted values account for splits and dividend reinvestment; price-only history excludes dividends. Values are nominal DKK before personal tax, dealing fees and currency-conversion charges. Fund expenses reflected in observed prices remain embedded. The simulation writes no portfolio transactions. It accepts contributions up to DKK 1 million/month and an initial investment up to DKK 100 million; nonfinite or balances above the supported safe-number limit are rejected. It is a replay of historical returns, not a forecast or broker execution model.

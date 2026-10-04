@@ -65,7 +65,7 @@ test('watchlist, notes, filters and comparisons work', async ({ page }) => {
   await page.getByRole('button', { name: 'Save note' }).click();
   await expect(page.getByRole('status')).toContainText('Research note saved');
   await page.getByRole('checkbox', { name: 'VWCE', exact: true }).check();
-  await expect(page.getByText('Price change indexed to 100 · common dates only')).toBeVisible();
+  await expect(page.getByText('Price change indexed to 100 · common months only')).toBeVisible();
   await page.getByRole('button', { name: 'Watchlist', exact: true }).click();
   await page.getByRole('textbox', { name: 'Search investments' }).fill('Microsoft');
   await expect(page.getByRole('button', { name: 'View Microsoft', exact: true })).toBeVisible();

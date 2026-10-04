@@ -40,10 +40,10 @@ test.beforeAll(async () => {
       fxSource: 'ECB',
       quote: { date: '2026-10-02', close: 260 },
       points: [
-        { date: '2006-09-29', close: 100, adjustedClose: 25 },
-        { date: '2008-09-30', close: 100, adjustedClose: 20 },
-        { date: '2025-09-30', close: 200, adjustedClose: 40 },
-        { date: '2026-09-30', close: 250, adjustedClose: 50 },
+        { date: '2006-09-29', close: 100, adjustedClose: 25, fxToDkk: 6, fxDate: '2006-09-29' },
+        { date: '2008-09-30', close: 100, adjustedClose: 20, fxToDkk: 6, fxDate: '2008-09-30' },
+        { date: '2025-09-30', close: 200, adjustedClose: 40, fxToDkk: 6, fxDate: '2025-09-30' },
+        { date: '2026-09-30', close: 250, adjustedClose: 50, fxToDkk: 6, fxDate: '2026-09-30' },
       ],
     });
 });
@@ -138,7 +138,7 @@ test('private historical analysis distinguishes adjusted returns from the curren
   await signIn(page, ownerEmail);
   await expect(page.getByRole('heading', { name: 'Your future starts here.' })).toBeVisible();
   await page.goto('./#/explore?investment=msft');
-  await expect(page.getByText('Adjusted monthly history in USD')).toBeVisible();
+  await expect(page.getByText('Adjusted monthly history in DKK')).toBeVisible();
   await expect(page.getByRole('button', { name: '20Y', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -149,6 +149,9 @@ test('private historical analysis distinguishes adjusted returns from the curren
   await page.getByRole('button', { name: '1Y', exact: true }).click();
   await expect(page.getByText('Period adjusted return').locator('..')).toContainText('25');
   await expect(page.locator('.source-line')).toContainText('ECB');
+  await expect(page.getByText(/This period has a missing monthly observation/)).toBeVisible();
+  await page.getByRole('button', { name: 'Trading currency', exact: true }).click();
+  await expect(page.getByText('Adjusted monthly history in USD')).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
@@ -160,6 +163,63 @@ test('private historical analysis distinguishes adjusted returns from the curren
     audit.violations.map((violation) => ({
       id: violation.id,
       nodes: violation.nodes.map((node) => ({ target: node.target, summary: node.failureSummary })),
+    })),
+  ).toEqual([]);
+});
+
+test('dated DKK returns feed holding statistics and monthly saving without changing raw quotes', async ({
+  page,
+}) => {
+  await getFirestore(admin)
+    .doc('market/eunl')
+    .set({
+      instrumentId: 'eunl',
+      currency: 'EUR',
+      source: 'Alpha Vantage',
+      providerSymbol: 'EUNL.DEX',
+      frequency: 'monthly',
+      adjustment: 'splits-and-dividends',
+      fetchedAt: '2026-10-04T10:00:00.000Z',
+      fxToDkk: 8,
+      fxDate: '2026-10-02',
+      fxSource: 'ECB',
+      quote: { date: '2026-10-02', close: 999 },
+      points: [
+        { date: '2025-01-31', close: 100, adjustedClose: 100, fxToDkk: 6, fxDate: '2025-01-31' },
+        { date: '2025-02-28', close: 100, adjustedClose: 100, fxToDkk: 7, fxDate: '2025-02-28' },
+        { date: '2025-03-31', close: 100, adjustedClose: 100, fxToDkk: 8, fxDate: '2025-03-31' },
+      ],
+    });
+  await signIn(page, ownerEmail);
+  await expect(page.getByRole('heading', { name: 'Your future starts here.' })).toBeVisible();
+  await page.goto('./#/explore?investment=eunl');
+  await expect(page.getByText('Adjusted monthly history in DKK')).toBeVisible();
+  await expect(page.locator('.detail-metrics').first()).toContainText('999');
+  await expect(page.locator('.holding-summary')).toContainText('+33,3%');
+  await expect(page.locator('.historical-savings .result-breakdown')).toContainText('3.000');
+  // 1000 at 600; grow to 700 then add 1000; grow to 800 then add 1000 = 3476.19.
+  await expect(page.locator('.historical-savings .result-breakdown')).toContainText('3.476');
+  await expect(page.locator('.historical-savings .result-breakdown')).toContainText('476');
+  await page.getByRole('button', { name: 'Trading currency', exact: true }).click();
+  await expect(page.locator('.holding-summary')).toContainText('0%');
+  await expect(page.locator('.historical-savings .result-breakdown')).toContainText('3.476');
+  await page.getByRole('button', { name: 'Show monthly saving values' }).click();
+  await expect(page.locator('.historical-savings tbody tr')).toHaveCount(3);
+  await page.getByLabel('Historical monthly contribution (DKK)', { exact: true }).fill('2000');
+  await expect(page.locator('.historical-savings .result-breakdown')).toContainText('6.952');
+  await page.getByLabel('Saving start month').selectOption('2025-02');
+  await expect(page.locator('.historical-savings .result-breakdown')).toContainText('4.286');
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+    ),
+  ).toBe(true);
+  const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(
+    audit.violations.map((violation) => ({
+      id: violation.id,
+      nodes: violation.nodes.map((node) => node.target),
     })),
   ).toEqual([]);
 });

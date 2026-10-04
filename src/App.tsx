@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { NavLink, Route, Routes, Navigate, useLocation, Link } from 'react-router-dom';
 import {
   BarChart3,
@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   CircleHelp,
   Landmark,
+  Columns2,
 } from 'lucide-react';
 import { useApp, friendlyError } from './lib/store';
 import { firebaseConfigured, firebasePartial, login } from './lib/firebase';
@@ -28,12 +29,14 @@ import Learn from './pages/Learn';
 import Tax from './pages/Tax';
 import Settings from './pages/Settings';
 import Strategies from './pages/Strategies';
+const FundComparison = lazy(() => import('./pages/FundComparison'));
 
 const nav = [
   ['/', 'Overview', LayoutDashboard],
   ['/planner', 'Future planner', BarChart3],
   ['/explore', 'Explore investments', Telescope],
   ['/strategies', 'Investment strategies', SlidersHorizontal],
+  ['/compare-funds', 'Compare funds', Columns2],
   ['/portfolio', 'My portfolio', Wallet],
   ['/learn', 'Learn to invest', BookOpen],
   ['/tax', 'Investing in Denmark', Landmark],
@@ -349,6 +352,14 @@ export default function App() {
             <Route path="/planner" element={<Planner />} />
             <Route path="/explore" element={<Explore />} />
             <Route path="/strategies" element={<Strategies />} />
+            <Route
+              path="/compare-funds"
+              element={
+                <Suspense fallback={<p role="status">Opening fund comparison…</p>}>
+                  <FundComparison />
+                </Suspense>
+              }
+            />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/learn" element={<Learn />} />
             <Route path="/tax" element={<Tax />} />

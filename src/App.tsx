@@ -17,6 +17,8 @@ import {
   CircleHelp,
   Landmark,
   Columns2,
+  Layers3,
+  CalendarDays,
 } from 'lucide-react';
 import { useApp, friendlyError } from './lib/store';
 import { firebaseConfigured, firebasePartial, login } from './lib/firebase';
@@ -30,6 +32,8 @@ import Tax from './pages/Tax';
 import Settings from './pages/Settings';
 import Strategies from './pages/Strategies';
 const FundComparison = lazy(() => import('./pages/FundComparison'));
+const Holdings = lazy(() => import('./pages/Holdings'));
+const Contributions = lazy(() => import('./pages/Contributions'));
 
 const nav = [
   ['/', 'Overview', LayoutDashboard],
@@ -37,6 +41,8 @@ const nav = [
   ['/explore', 'Explore investments', Telescope],
   ['/strategies', 'Investment strategies', SlidersHorizontal],
   ['/compare-funds', 'Compare funds', Columns2],
+  ['/holdings', 'Holdings & overlap', Layers3],
+  ['/contributions', 'Monthly contributions', CalendarDays],
   ['/portfolio', 'My portfolio', Wallet],
   ['/learn', 'Learn to invest', BookOpen],
   ['/tax', 'Investing in Denmark', Landmark],
@@ -352,6 +358,22 @@ export default function App() {
             <Route path="/planner" element={<Planner />} />
             <Route path="/explore" element={<Explore />} />
             <Route path="/strategies" element={<Strategies />} />
+            <Route
+              path="/holdings"
+              element={
+                <Suspense fallback={<p role="status">Opening holdings review…</p>}>
+                  <Holdings />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/contributions"
+              element={
+                <Suspense fallback={<p role="status">Opening contribution plan…</p>}>
+                  <Contributions />
+                </Suspense>
+              }
+            />
             <Route
               path="/compare-funds"
               element={

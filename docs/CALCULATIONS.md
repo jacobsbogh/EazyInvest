@@ -139,3 +139,40 @@ ASK room includes retained inside cash; excess planned money stays outside at 0%
 Hypothetical chart sales never reduce subsequent holdings. Optional maximum exit
 costs apply only to these terminal sales; internal annual-tax redemptions have no
 separate execution charge. All monetary outputs use nominal future DKK.
+
+## Dated holdings and security overlap
+
+`shared/holdings.ts` matches identified equity securities by ISIN. Strategy weights
+multiply issuer security weights without renormalizing partial inventories.
+Observed overlap is the sum of the smaller of the two weights for each common
+ISIN. Its conservative upper bound is the smaller of 100% and observed overlap
+plus both unresolved remainders. Missing data therefore cannot establish zero
+overlap. Share classes and ADRs remain separate. Country/sector labels describe
+issuer equity classifications, not revenues or trading-currency exposure; sector
+taxonomies remain separated by issuer. Reporting dates are independent and visible.
+
+## Manual monthly contribution worksheets
+
+`shared/contributions.ts` allocates entered cash plus a saved strategy's monthly
+budget in integer øre. Target weights split new cash proportionally; underweight
+mode splits it by positive gaps against target values after the deposit and before
+charges. Only recorded positions belonging to the strategy enter those gaps.
+Missing prices for existing positions block underweight calculations. The ledger
+does not supply an account cash balance or ASK contribution room.
+
+Independent fixture: DKK 1,000, two 50% targets priced at DKK 100/200 per unit,
+DKK 10 minimum commission and 1% conversion on the EUR position produce 4/2 units.
+Notional is DKK 800, commissions DKK 20, conversion DKK 4 and remaining cash DKK 176.
+No order fee applies when no unit fits. Percentage commission applies instead of
+the minimum when larger, never in addition to it. Notional and percentage-cost
+reserves round upward to øre; entered cash/minimum fees require two-decimal precision.
+Fractional mode permits six-decimal units. Each order must fit its assigned budget.
+
+Prices use the exact listing's raw quote and that record's dated DKK conversion.
+Real quotes with future timestamps, mismatched identities, invalid FX or observations
+older than three calendar days cannot size orders. Explicit demos may use labelled
+generated examples. Unpriced target allocations stay in cash. The optional 1–12
+month rehearsal carries cash and planned units while holding all quotes/FX fixed;
+it models no return or price path. Projected weights exclude cash. Only the monthly
+budget may be saved; plans never write transactions. Spread, price movement, tax,
+fund entry/exit charges and ongoing expenses are excluded from execution costs.

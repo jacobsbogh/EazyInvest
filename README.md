@@ -33,12 +33,22 @@ Without `.env.local`, choose **Explore the demo**. Generated example prices and 
 - Free GitHub Actions market job: credentials remain in Actions secrets, and a restricted writer cannot read your portfolio.
 - Lightweight saved quotes for dashboard/portfolio pricing, histories loaded on demand for research, and independent daily quote/weekly history refreshes.
 - A fund comparison with matching budgets, verified charges, explicit distribution assumptions, reinvestment or retained cash, ordinary-account/ASK/before-tax scenarios, annual cash flows and CSV export.
+- Dated issuer holdings for seven funds, exact-security overlap bounds and target-strategy country/sector exposure, with partial and missing coverage shown explicitly.
+- Monthly contribution worksheets from saved strategies, with dated quote/FX checks, whole or fractional units, commission/conversion assumptions, underweight allocation, cash carry-forward and CSV export.
 
 The catalog is a starting universe, not a buy list. Coverage remains specific to each listing. Fund facts show dated issuer sources and exact ISIN membership in the reviewed 2026 SKAT list; absent, missing or conflicting information is disclosed. Membership alone does not establish suitability or account eligibility. Alpha Vantage history uses provider closes adjusted for splits/dividends; current holdings use separate unadjusted quotes. Monthly sampling can miss larger falls between observations. Each fund/listing has its own available history. Free coverage is checked against the exact symbol, venue, currency and security type; unsupported listings remain missing.
 
 The [fund expansion](docs/FUND_EXPANSION.md) documents exact share classes, verified costs/tax sources and actual free-history ranges. Three Danish funds have provider history only from 2022. [Compare funds](docs/FUND_COMPARISON.md) models distributions separately using user assumptions and frozen 2026 rules. The general future planner retains its unsupported strategy-tax handoff guards. Matching production rules, the initial import and Pages publication are complete.
 
 Gains are before tax. Sales/dividends leave the investment ledger; there is no broker cash balance. The app cannot execute trades. Broker integration, pensions, corporate investing, tax filing, splits/transfers and withholding-tax reconciliation are outside this version. See [calculation assumptions](docs/CALCULATIONS.md).
+
+[Holdings and contributions](docs/HOLDINGS_CONTRIBUTIONS.md) uses nearly complete
+identified equity holdings for five iShares funds and small reviewed subsets for
+Sparindex Globale Aktier KL and Vanguard VWCE. Snapshots retain each issuer's date
+and publish with reviewed releases; they are separate from the daily price job.
+The contribution worksheet saves only a strategy's monthly budget, never planned
+transactions. Rehearsal months keep quotes fixed; account deposit room and
+investment eligibility require separate checks.
 
 ## Private storage and price updates
 

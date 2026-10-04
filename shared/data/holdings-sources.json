@@ -1,0 +1,43 @@
+[
+  {
+    "id": "eunl",
+    "isin": "IE00B4L5Y983",
+    "kind": "ishares",
+    "productId": "251882",
+    "source": "https://www.ishares.com/uk/individual/en/products/251882/ishares-msci-world-ucits-etf-acc-fund"
+  },
+  {
+    "id": "is3n",
+    "isin": "IE00BKM4GZ66",
+    "kind": "ishares",
+    "productId": "264659",
+    "source": "https://www.ishares.com/uk/individual/en/products/264659/ishares-msci-emerging-markets-imi-ucits-etf"
+  },
+  {
+    "id": "sxr8",
+    "isin": "IE00B5BMR087",
+    "kind": "ishares",
+    "productId": "253743",
+    "source": "https://www.ishares.com/uk/individual/en/products/253743/ishares-sp-500-b-ucits-etf-acc-fund"
+  },
+  {
+    "id": "eunk",
+    "isin": "IE00B4K48X80",
+    "kind": "ishares",
+    "productId": "251861",
+    "source": "https://www.ishares.com/uk/individual/en/products/251861/ishares-msci-europe-ucits-etf-acc-fund"
+  },
+  {
+    "id": "iusn",
+    "isin": "IE00BF4RFH31",
+    "kind": "ishares",
+    "productId": "296576",
+    "source": "https://www.ishares.com/uk/individual/en/products/296576/ishares-msci-world-small-cap-ucits-etf-usd-acc-fund"
+  },
+  {
+    "id": "sparindex-global",
+    "isin": "DK0060747822",
+    "kind": "sparindex",
+    "source": "https://www.sparindex.dk/vores-fonde/index-globale-aktier-kl/"
+  }
+]

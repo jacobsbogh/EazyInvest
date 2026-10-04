@@ -531,6 +531,10 @@ export default function FundComparison() {
               </li>
             </ul>
             <p>
+              <Link to={`/holdings?first=${ids[0]}&second=${ids[1]}`}>
+                Review these funds’ holdings overlap
+              </Link>
+              {' · '}
               <a href={tax2026.fundSource} target="_blank" rel="noreferrer">
                 SKAT fund rules
               </a>{' '}

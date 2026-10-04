@@ -15,8 +15,7 @@
 - Add transaction editing with the same complete-ledger validation as import and deletion, plus an audit trail.
 - Add dated portfolio snapshots and clearly distinguish deposits/withdrawals from performance. Define the cash-account model before implementing time-weighted or money-weighted returns.
 - Support additional broker CSV formats only with representative sanitized fixtures and explicit mappings.
-- Add verified geographic/sector exposure and holdings overlap from issuer/provider sources with update timestamps.
-- Turn a saved strategy into a monthly contribution allocation, with fractional/whole-unit assumptions and explicit trading costs; execution remains manual.
+- Extend verified holdings coverage beyond the initial seven funds and replace reviewed name-only subsets when issuer ISIN inventories become available. Refresh snapshots through reviewed releases and preserve reporting dates.
 
 ## Longer-term research
 
@@ -53,3 +52,10 @@ distribution assumptions, reinvestment/cash, ordinary/ASK/before-tax accounts,
 average acquisition cost, shared progressive bands, annual losses and ASK room,
 year-by-year hypothetical sale values and assumption-inclusive CSV export. See
 [model and verification](FUND_COMPARISON.md).
+
+Holdings and contributions: seven dated issuer snapshots, exact-security overlap
+bounds, weighted strategy country/sector exposure, explicit unresolved weight,
+saved-budget monthly worksheets with affordable whole/fractional units, broker/FX
+costs, contribution-only underweight allocation, cash carry-forward and exports.
+Quotes require exact listings and current dated FX. No hypothetical trades enter
+the ledger. See [coverage and calculation contract](HOLDINGS_CONTRIBUTIONS.md).

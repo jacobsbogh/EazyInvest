@@ -909,6 +909,64 @@ textarea:focus-visible {
 .fund-comparison > * {
   min-width: 0;
 }
+.contributions-layout > * {
+  min-width: 0;
+}
+.contributions-layout .plan-controls > h2,
+.contributions-layout .plan-controls > p {
+  grid-column: 1 / -1;
+}
+.exposure-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.exposure-grid > * {
+  min-width: 0;
+}
+.overlap-result {
+  background: #f0f4e9;
+  padding: 20px;
+  margin-bottom: 20px;
+  border-radius: 12px;
+}
+.overlap-result > strong,
+.exposure-total {
+  font-size: 21px;
+  color: #3e6950;
+}
+.exposure-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  margin: 16px 0;
+  font-size: 12px;
+}
+.exposure-bar > span {
+  overflow-wrap: anywhere;
+}
+.exposure-bar > div {
+  grid-column: 1 / -1;
+  height: 7px;
+  background: #edf0e8;
+  border-radius: 5px;
+}
+.exposure-bar i {
+  display: block;
+  height: 100%;
+  background: #476d59;
+  border-radius: 5px;
+}
+.exposure-source,
+.contribution-price {
+  border-top: 1px solid #e8ebe3;
+  padding: 18px 0;
+}
+@media (max-width: 800px) {
+  .exposure-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .fund-comparison .plan-controls > h2,
 .fund-comparison .plan-controls > p {
   grid-column: 1 / -1;

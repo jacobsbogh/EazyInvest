@@ -26,6 +26,7 @@
     "sync:market": "npm run build:jobs && node jobs/lib/jobs/src/refresh.js",
     "update:danish-catalog": "npm run build:jobs && node jobs/lib/jobs/src/update-danish-catalog.js",
     "verify:market": "npm run build:jobs && node jobs/lib/jobs/src/verify-market.js",
+    "update:holdings": "node scripts/update-holdings.mjs",
     "check": "npm run build && npm run build:jobs && npm test"
   },
   "dependencies": {

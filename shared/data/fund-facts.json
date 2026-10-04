@@ -1,0 +1,210 @@
+[
+  {
+    "isin": "IE00BK5BQT80",
+    "incomeTreatment": "accumulating",
+    "cost": {
+      "percent": 0.14,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.vanguard.co.uk/professional/product/etf/equity/9679/ftse-all-world-ucits",
+      "basis": "ongoing"
+    }
+  },
+  {
+    "isin": "IE00B4L5Y983",
+    "incomeTreatment": "accumulating",
+    "cost": {
+      "percent": 0.2,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.ishares.com/uk/individual/en/products/251882/ishares-msci-world-ucits-etf-acc-fund",
+      "basis": "TER"
+    }
+  },
+  {
+    "isin": "IE00BKM4GZ66",
+    "incomeTreatment": "accumulating",
+    "cost": {
+      "percent": 0.18,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.ishares.com/uk/individual/en/products/264659/ishares-msci-emerging-markets-imi-ucits-etf",
+      "basis": "TER"
+    }
+  },
+  {
+    "isin": "IE00B5BMR087",
+    "incomeTreatment": "accumulating",
+    "cost": {
+      "percent": 0.07,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.ishares.com/ch/individual/en/products/253743/ishares-sp-500-b-ucits-etf-acc-fund",
+      "basis": "TER"
+    }
+  },
+  {
+    "isin": "DK0060747822",
+    "incomeTreatment": "distributing",
+    "cost": {
+      "percent": 0.5,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.sparindex.dk/vores-fonde/index-globale-aktier-kl/",
+      "basis": "ongoing"
+    },
+    "transactionCost": {
+      "percent": 0.05,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.sparindex.dk/vores-fonde/index-globale-aktier-kl/"
+    },
+    "entryCost": {
+      "percent": 0.12,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.sparindex.dk/vores-fonde/index-globale-aktier-kl/"
+    },
+    "exitCost": {
+      "percent": 0.07,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.sparindex.dk/vores-fonde/index-globale-aktier-kl/"
+    },
+    "tax": {
+      "kind": "equity-realisation-distributions",
+      "year": 2026,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.sparindex.dk/viden/skat/"
+    },
+    "historyNote": {
+      "text": "The issuer reports an investment-strategy change on 17 November 2017. Earlier history follows the previous strategy.",
+      "source": "https://reports.sparinvest.dk/PRIIPSPerformanceScenario_DK0060747822_da.pdf"
+    }
+  },
+  {
+    "isin": "DK0060300762",
+    "incomeTreatment": "distributing",
+    "cost": {
+      "percent": 0.5,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.sparindex.dk/vores-fonde/index-emerging-markets-kl/",
+      "basis": "ongoing"
+    },
+    "transactionCost": {
+      "percent": 0.11,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.sparindex.dk/vores-fonde/index-emerging-markets-kl/"
+    },
+    "entryCost": {
+      "percent": 0.27,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.sparindex.dk/vores-fonde/index-emerging-markets-kl/"
+    },
+    "exitCost": {
+      "percent": 0.29,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.sparindex.dk/vores-fonde/index-emerging-markets-kl/"
+    },
+    "tax": {
+      "kind": "equity-realisation-distributions",
+      "year": 2026,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.sparindex.dk/viden/skat/"
+    }
+  },
+  {
+    "isin": "DK0010263052",
+    "incomeTreatment": "distributing",
+    "cost": {
+      "percent": 0.4,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.danskeinvest.dk/w/show_funds.product?p_nFund=1873&p_nFundgroup=75&p_nId=75",
+      "basis": "ongoing"
+    },
+    "transactionCost": {
+      "percent": 0.1,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.danskeinvest.dk/w/show_list.charges?p_nFundGroup=75&p_nId=75"
+    },
+    "entryCost": {
+      "percent": 0.1,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.danskeinvest.dk/w/show_funds.product?p_nFund=1873&p_nFundgroup=75&p_nId=75"
+    },
+    "exitCost": {
+      "percent": 0.07,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.danskeinvest.dk/w/show_funds.product?p_nFund=1873&p_nFundgroup=75&p_nId=75"
+    },
+    "tax": {
+      "kind": "equity-realisation-distributions",
+      "year": 2026,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.danskeinvest.dk/web/show_download.prospectus?p_vIsin=DK0010263052&p_vLanguage=da"
+    }
+  },
+  {
+    "isin": "DK0060451623",
+    "incomeTreatment": "distributing",
+    "cost": {
+      "percent": 0.35,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.nordeafunds.com/da/fonde/globale-aktier-indeks-kl-1",
+      "basis": "ongoing"
+    },
+    "transactionCost": {
+      "percent": 0.04,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.nordeafunds.com/da/fonde/globale-aktier-indeks-kl-1"
+    },
+    "entryCost": {
+      "percent": 0.1,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.nordeafunds.com/da/fonde/globale-aktier-indeks-kl-1"
+    },
+    "exitCost": {
+      "percent": 0.05,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.nordeafunds.com/da/fonde/globale-aktier-indeks-kl-1"
+    },
+    "tax": {
+      "kind": "equity-realisation-distributions",
+      "year": 2026,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.nordeafunds.com/da/fonde/globale-aktier-indeks-kl-1"
+    }
+  },
+  {
+    "isin": "IE00B3YLTY66",
+    "incomeTreatment": "accumulating",
+    "cost": {
+      "percent": 0.17,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.ssga.com/ie/en_gb/intermediary/etfs/state-street-spdr-msci-all-country-world-investable-market-ucits-etf-acc-spyi-gy",
+      "basis": "TER"
+    }
+  },
+  {
+    "isin": "IE00BFY0GT14",
+    "incomeTreatment": "accumulating",
+    "cost": {
+      "percent": 0.12,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.ssga.com/ie/en_gb/intermediary/etfs/state-street-spdr-msci-world-ucits-etf-acc-sppw-gy",
+      "basis": "TER"
+    }
+  },
+  {
+    "isin": "IE00B4K48X80",
+    "incomeTreatment": "accumulating",
+    "cost": {
+      "percent": 0.12,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.ishares.com/uk/individual/en/products/251861/ishares-msci-europe-ucits-etf-acc-fund",
+      "basis": "TER"
+    }
+  },
+  {
+    "isin": "IE00BF4RFH31",
+    "incomeTreatment": "accumulating",
+    "cost": {
+      "percent": 0.35,
+      "checkedAt": "2026-10-04",
+      "source": "https://www.ishares.com/uk/individual/en/products/296576/ishares-msci-world-small-cap-ucits-etf-usd-acc-fund",
+      "basis": "TER"
+    }
+  }
+]

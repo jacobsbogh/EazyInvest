@@ -1,8 +1,10 @@
 # Fund facts and Danish list provenance
 
-Issuer fund costs are matched by share-class ISIN. All were checked on 2026-10-04.
-They exclude broker dealing and currency conversion, are already reflected in
-observed fund returns, and are not deducted again in historical simulations.
+Issuer fund facts are matched by share-class ISIN in `shared/data/fund-facts.json`.
+All twelve fund classes were checked on 2026-10-04. Annual ongoing charges/TER
+exclude broker dealing and currency conversion. Separate transaction estimates
+and maximum entry/exit charges are stored for the four Danish funds. Fund expenses
+already reflected in observed returns are not deducted again in simulations.
 
 | ISIN         | Catalog | Annual charge | Primary source                                                                                                                                                                                                                               |
 | ------------ | ------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -11,10 +13,15 @@ observed fund returns, and are not deducted again in historical simulations.
 | IE00BKM4GZ66 | IS3N    | 0.18%         | [iShares share-class facts](https://www.ishares.com/uk/individual/en/products/264659/ishares-msci-emerging-markets-imi-ucits-etf)                                                                                                            |
 | IE00B5BMR087 | SXR8    | 0.07%         | [iShares share-class facts](https://www.ishares.com/ch/individual/en/products/253743/ishares-sp-500-b-ucits-etf-acc-fund)                                                                                                                    |
 
+Eight additional classes, separate cost components and their primary sources are
+documented in [the fund expansion](FUND_EXPANSION.md).
+
 Source pages may display another trading ticker for the same ISIN. Listing currency
 and exchange remain separate. Weighted strategy costs sum allocation times annual
-fund charges; an unknown ETF cost makes the aggregate unknown. Individual stocks
-contribute no fund charge, which does not imply that holding them is free. Users
+ongoing charges/TER; an unknown fund cost makes the aggregate unknown. Ordinary
+direct company shares contribute no fund charge, which does not imply free holding.
+Investment-company shares explicitly classified as funds by the provider keep
+unknown costs/tax facts and participate in checks. Users
 can carry these charges into the future planner; return assumptions stay explicit.
 
 ## Reviewed 2026 SKAT snapshot
@@ -33,14 +40,20 @@ stay unknown, even when another row appears positive.
 
 Review found 5,343 unique listed ISINs across 5,441 source rows, with 37 non-ISIN
 rows skipped. `IE000QWO5FT3` has conflicting registration years and is explicitly
-unknown. EUNL, IS3N and SXR8 have exact matches. VWCE's ISIN was not found.
+unknown. EUNL, IS3N, SXR8, SPYI, SPPW, EUNK and IUSN have exact matches. VWCE's ISIN was not found.
 Absence does not establish another tax classification or ASK eligibility. Future
-tax years without a reviewed snapshot are unknown. Individual shares are outside
-this investment-company-list check.
+tax years without a reviewed snapshot are unknown. Ordinary direct company shares
+are outside this investment-company-list check; provider-classified investment
+companies remain subject to fund checks.
 
 [SKAT's fund taxation guidance](https://skat.dk/borger/aktier-og-andre-vaerdipapirer/skat-af-investeringsbeviser-udstedt-af-investeringsforeninger-og-investeringsselskaber)
-describes annual taxation for investment companies. Strategy handoff blocks the
-tax-on-sale illustration for funds with positive list matches. Historical backtests
+describes annual taxation for investment companies. Exact issuer evidence records
+2026 realisation/distribution share-income treatment for the four domestic funds
+independently of list membership. Strategy handoff blocks tax-on-sale illustrations
+for positive-list funds, unknown ordinary-account classifications, and ordinary-account
+illustrations for distributing funds because distribution taxation is not modelled.
+Before-tax planning and the separate existing ASK illustration remain available;
+ASK eligibility and broker availability are not established by these facts. Historical backtests
 stay before personal tax; projections use the existing account illustrations and
 frozen 2026 parameters.
 

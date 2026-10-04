@@ -62,6 +62,7 @@ describe('Spark owner and market-writer boundaries', () => {
       quote: { date: '2026-10-02', close: 300 },
       reportedTrade: {
         source: 'Nasdaq Nordic',
+        transactionId: 'verified-trade-1',
         dateTime: '2026-10-02T14:55:00.000Z',
         close: 301,
         isin: item.isin,
@@ -78,6 +79,8 @@ describe('Spark owner and market-writer boundaries', () => {
       { currency: 'USD' },
       { reportedTrade: { ...series.reportedTrade, isin: 'DK0010244425' } },
       { reportedTrade: { ...series.reportedTrade, mic: 'DSME' } },
+      { reportedTrade: { ...series.reportedTrade, transactionId: '' } },
+      { reportedTrade: { ...series.reportedTrade, transactionId: 'x'.repeat(101) } },
     ])
       await assertFails(setDoc(doc(writer, 'market/novo'), { ...series, ...change }));
     await assertFails(setDoc(doc(owner, 'market/novo'), series));
@@ -93,6 +96,37 @@ describe('Spark owner and market-writer boundaries', () => {
         providerSymbol: 'RLAINV.CO',
       }),
     );
+  });
+  it('accepts issuer-verified Danish funds without confusing provider security type with fund structure', async () => {
+    const writer = env.authenticatedContext('writer').firestore();
+    const owner = env.authenticatedContext('owner').firestore();
+    const item = getInstrument('sparindex-global');
+    const registry = doc(writer, 'instrumentRegistry', item.id);
+    await assertSucceeds(setDoc(registry, item));
+    await assertSucceeds(setDoc(registry, { ...item, yahooType: 'MUTUALFUND' }));
+    await assertFails(
+      setDoc(registry, { ...item, yahooType: 'MUTUALFUND', sourceKind: 'provider' }),
+    );
+    await assertFails(setDoc(registry, { ...item, yahooType: 'MUTUALFUND', isin: '' }));
+    await assertSucceeds(setDoc(registry, item));
+    const series = {
+      ...demoMarket().novo,
+      instrumentId: item.id,
+      source: 'Yahoo Finance',
+      frequency: 'monthly',
+      adjustment: 'splits-and-dividends',
+      closeAdjustment: 'splits',
+      providerSymbol: item.yahooSymbol,
+      fxSource: 'ECB',
+      quote: { date: '2026-10-02', close: 175 },
+    };
+    const price = doc(writer, 'market', item.id);
+    await assertSucceeds(setDoc(price, series));
+    await assertSucceeds(getDoc(doc(owner, 'market', item.id)));
+    await assertFails(setDoc(price, { ...series, providerSymbol: 'DKIGI.CO' }));
+    await assertFails(setDoc(price, { ...series, currency: 'EUR' }));
+    await assertFails(setDoc(doc(owner, 'market', item.id), series));
+    await assertFails(setDoc(doc(owner, 'instrumentRegistry', item.id), item));
   });
   it('allows owner reads and a sequential workspace update', async () => {
     const db = env.authenticatedContext('owner').firestore();

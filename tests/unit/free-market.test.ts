@@ -12,7 +12,12 @@ import {
   mergeDanishListings,
 } from '../../jobs/src/danish-listings';
 import { parseYahooSeries, exchangeDate, fetchYahooSeries } from '../../jobs/src/yahoo';
-import { parseNasdaqTrades, selectNasdaqFiles, withNasdaqReference } from '../../jobs/src/nasdaq';
+import {
+  parseNasdaqTrades,
+  selectNasdaqFiles,
+  withNasdaqReference,
+  fetchNasdaqReferences,
+} from '../../jobs/src/nasdaq';
 
 const now = new Date('2026-03-03T18:00:00Z');
 const timestamp = (date: string) => Date.parse(date) / 1000;
@@ -281,6 +286,70 @@ describe('official Nasdaq trade reference, separate from return history', () => 
     id = 'a',
     flags = 'ALGO',
   ) => `${time};DK0062498333;${price};DKK;MONE;${venue};${system};${id};${flags}`;
+  it('applies later-file cancellations and amendments before selecting the latest valid trade', async () => {
+    const names = [file, file.replace('1700', '1701')];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/trade-reports'))
+        return new Response(JSON.stringify({ reports: names }));
+      return new Response(
+        [
+          header,
+          ...(url.searchParams.get('fileName') === names[0]
+            ? [
+                row('2026-03-03T16:00:00Z', 120, 'XCSE', 'CLOB', 'valid'),
+                row('2026-03-03T16:00:01Z', 121, 'XCSE', 'CLOB', 'cancelled'),
+                row('2026-03-03T16:00:02Z', 122, 'XCSE', 'CLOB', 'amended'),
+              ]
+            : [
+                row('2026-03-03T16:00:01Z', 121, 'XCSE', 'CLOB', 'cancelled', 'CNCL'),
+                row('2026-03-03T16:00:02Z', 122, 'XCSE', 'CLOB', 'amended', 'AMND'),
+              ]),
+        ].join('\n'),
+      );
+    });
+    const result = await fetchNasdaqReferences();
+    expect(result.get(item().isin)).toMatchObject({ close: 120, transactionId: 'valid' });
+  });
+  it('removes invalidated saved references, including legacy references lacking transaction IDs', async () => {
+    const names = [file, file.replace('1700', '1701')];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      return url.pathname.endsWith('/trade-reports')
+        ? new Response(JSON.stringify({ reports: names }))
+        : new Response(
+            [
+              header,
+              row(
+                '2026-03-03T16:00:00Z',
+                121,
+                'XCSE',
+                'CLOB',
+                'cancelled',
+                url.searchParams.get('fileName') === names[0] ? 'ALGO' : 'CNCL',
+              ),
+            ].join('\n'),
+          );
+    });
+    const references = await fetchNasdaqReferences();
+    expect(references.size).toBe(0);
+    const reportedTrade = parseNasdaqTrades(
+      [header, row('2026-03-03T16:00:00Z', 121, 'XCSE', 'CLOB', 'cancelled')].join('\n'),
+      file,
+      now,
+    ).get(item().isin)!;
+    const series = parseYahooSeries(chart(), item(), fx, now);
+    expect(
+      withNasdaqReference({ ...series, reportedTrade }, item(), references).reportedTrade,
+    ).toBeUndefined();
+    const { transactionId: _id, ...legacy } = reportedTrade;
+    expect(
+      withNasdaqReference({ ...series, reportedTrade: legacy }, item(), references).reportedTrade,
+    ).toBeUndefined();
+    expect(
+      withNasdaqReference({ ...series, reportedTrade }, item(), new Map()).reportedTrade,
+    ).toEqual(reportedTrade);
+  });
   it('selects a bounded local closing-session sample from the newest available day', () => {
     expect(
       selectNasdaqFiles([

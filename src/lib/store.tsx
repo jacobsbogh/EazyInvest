@@ -128,7 +128,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const cached = await loadCachedMarket(catalog);
           const requests = await fetchHistoryRequests(catalog.map((item) => item.id));
           if (session === sessionRef.current) {
-            setDiscovered(registry);
+            // Search may already have added a listing while the catalog's
+            // market/history reads were in flight. Keep those later discoveries.
+            setDiscovered((old) => [
+              ...new Map([...registry, ...old].map((item) => [item.id, item])).values(),
+            ]);
             setMarket(Object.fromEntries(cached.map((item) => [item.instrumentId, item])));
             setHistoryRequests(
               Object.fromEntries(requests.map((item) => [item.instrumentId, item])),

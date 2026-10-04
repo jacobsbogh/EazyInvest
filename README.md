@@ -21,7 +21,7 @@ Without `.env.local`, choose **Explore the demo**. Generated example prices and 
 
 - Dashboard with goal, watchlist, learning progress and long-term projections.
 - A 1–40 year planner with contributions, fees, inflation, tax illustrations, alternate assumptions, a market shock, table and CSV export.
-- A catalogue with 146 Danish share listings across Copenhagen Main Market and First North, plus reference ETFs/US stocks; local name/ticker/ISIN search, filters, pagination, queued discovery, watchlists and research notes.
+- A catalogue with 146 Danish share listings across Copenhagen Main Market and First North, four Danish index funds, eight UCITS ETFs and twenty US shares; local name/ticker/ISIN search, filters, pagination, queued discovery, watchlists and research notes.
 - DKK buy/sell/dividend ledger with average purchase cost, historical transaction FX, gains, reviewed CSV imports and JSON backups.
 - Six investing lessons and 2026 Danish tax calculators with official SKAT sources.
 - Email/password owner sign-in, private Firestore transactions, revision conflict protection and responsive layouts.
@@ -29,10 +29,12 @@ Without `.env.local`, choose **Explore the demo**. Generated example prices and 
 - Historical monthly saving in DKK, with selectable dates and separate contributions, investment value and gain/loss.
 - Saved investment strategies with up to five allocations, goals and research notes; matching-budget historical DKK portfolio comparisons, annual rebalancing, drawdown/recovery and a cash baseline.
 - A preferred strategy on the dashboard and an explicit budget/cost handoff to the future planner.
-- Dated issuer costs for the four reference ETFs and a reviewed, year-specific official SKAT list snapshot matched by exact ISIN.
+- Dated issuer costs for twelve fund share classes, separate Danish-fund transaction/entry/exit charges, and verified year-specific tax facts with exact ISIN matching.
 - Free GitHub Actions market job: credentials remain in Actions secrets, and a restricted writer cannot read your portfolio.
 
 The catalog is a starting universe, not a buy list. Coverage remains specific to each listing. Fund facts show dated issuer sources and exact ISIN membership in the reviewed 2026 SKAT list; absent, missing or conflicting information is disclosed. Membership alone does not establish suitability or account eligibility. Alpha Vantage history uses provider closes adjusted for splits/dividends; current holdings use separate unadjusted quotes. Monthly sampling can miss larger falls between observations. Each fund/listing has its own available history. Free coverage is checked against the exact symbol, venue, currency and security type; unsupported listings remain missing.
+
+The [fund expansion](docs/FUND_EXPANSION.md) documents exact share classes, verified costs/tax sources and actual free-history ranges. Three Danish funds have provider history only from 2022. Ordinary-account distribution taxation is not yet modelled by the future planner; unsupported strategy tax handoffs are blocked. Matching production rules, market import and Pages publication remain pending.
 
 Gains are before tax. Sales/dividends leave the investment ledger; there is no broker cash balance. The app cannot execute trades. Broker integration, pensions, corporate investing, tax filing, splits/transfers and withholding-tax reconciliation are outside this version. See [calculation assumptions](docs/CALCULATIONS.md).
 

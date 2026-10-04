@@ -53,7 +53,8 @@ export default function Explore() {
       (filter === 'All investments' ||
         (filter === 'ETFs' && i.kind === 'ETF') ||
         (filter === 'Stocks' && i.kind === 'Stock') ||
-        (filter === 'Danish stocks' && i.mic !== undefined) ||
+        (filter === 'Danish stocks' && i.kind === 'Stock' && i.mic !== undefined) ||
+        (filter === 'Danish funds' && i.kind === 'Fund' && i.mic === 'XCSE') ||
         (filter === 'First North' && ['DSME', 'FNDK'].includes(i.mic ?? '')) ||
         (filter === 'Watchlist' && data.watchlist.some((w) => w.instrumentId === i.id))),
   );
@@ -110,21 +111,27 @@ export default function Explore() {
       <section className="card explorer-list">
         <div className="explorer-toolbar">
           <div className="tabs" aria-label="Investment filters">
-            {['All investments', 'Danish stocks', 'First North', 'ETFs', 'Stocks', 'Watchlist'].map(
-              (tab) => (
-                <button
-                  key={tab}
-                  className={filter === tab ? 'active' : ''}
-                  onClick={() => {
-                    setFilter(tab);
-                    setPage(0);
-                  }}
-                  aria-pressed={filter === tab}
-                >
-                  {tab}
-                </button>
-              ),
-            )}
+            {[
+              'All investments',
+              'Danish funds',
+              'Danish stocks',
+              'First North',
+              'ETFs',
+              'Stocks',
+              'Watchlist',
+            ].map((tab) => (
+              <button
+                key={tab}
+                className={filter === tab ? 'active' : ''}
+                onClick={() => {
+                  setFilter(tab);
+                  setPage(0);
+                }}
+                aria-pressed={filter === tab}
+              >
+                {tab}
+              </button>
+            ))}
           </div>
           <label className="search-field">
             <Search size={17} />
@@ -242,8 +249,9 @@ export default function Explore() {
           </nav>
         )}
         <div className="table-footnote">
-          {instruments.filter((i) => i.mic).length} Danish share listings · Main Market and First
-          North · ESMA reference snapshot {danishCatalogDate}. Price coverage varies by listing.
+          {instruments.filter((i) => i.kind === 'Stock' && i.mic).length} Danish share listings ·
+          Main Market and First North · ESMA reference snapshot {danishCatalogDate}. Price coverage
+          varies by listing.
         </div>
       </section>
       <section className="card coverage-card">

@@ -385,3 +385,81 @@ test('owner queues market search and history without sending provider credential
     'pending',
   );
 });
+
+test('owner saves and reloads a Danish fund strategy using adjusted history and separate tax facts', async ({
+  page,
+}) => {
+  const db = getFirestore(admin);
+  for (const id of ['sparindex-global', 'spyi']) {
+    const item = getInstrument(id);
+    await db.doc(`instrumentRegistry/${id}`).set(item);
+    await db.doc(`market/${id}`).set({
+      instrumentId: id,
+      currency: item.currency,
+      source: 'Yahoo Finance',
+      providerSymbol: item.yahooSymbol,
+      frequency: 'monthly',
+      adjustment: 'splits-and-dividends',
+      closeAdjustment: 'splits',
+      fetchedAt: '2026-10-04T10:00:00.000Z',
+      fxToDkk: item.currency === 'DKK' ? 1 : 7.46,
+      fxDate: '2026-10-02',
+      fxSource: 'ECB',
+      quote: { date: '2026-10-02', close: 999 },
+      points: [100, 110, 121].map((adjustedClose, i) => {
+        const date = new Date(Date.UTC(2026, i + 7, 0)).toISOString().slice(0, 10);
+        return {
+          date,
+          close: adjustedClose,
+          adjustedClose,
+          fxToDkk: item.currency === 'DKK' ? 1 : 7.46,
+          fxDate: date,
+        };
+      }),
+    });
+  }
+  await signIn(page, ownerEmail);
+  await expect(page.getByRole('heading', { name: 'Your future starts here.' })).toBeVisible();
+  await page.goto('./#/explore?investment=sparindex-global');
+  await expect(page.getByText('Yahoo Finance history: 2026-07-31 to 2026-09-30.')).toBeVisible();
+  await expect(page.locator('.detail-metrics').first()).toContainText('999');
+  await expect(page.locator('.fund-facts')).toContainText(
+    'gains taxed on sale; distributions taxed when paid',
+  );
+  await page.getByRole('link', { name: 'Build a strategy', exact: true }).click();
+  await page.getByLabel('Strategy name', { exact: true }).fill('Cloud Danish index fund');
+  await page.getByLabel('Strategy starting money (DKK)').fill('0');
+  await page.getByLabel('Strategy monthly contribution (DKK)').fill('1000');
+  // Contributions at each month end: 1000 * 1.21 + 1000 * 1.1 + 1000 = 3310.
+  await expect(page.locator('.strategy-outcomes')).toContainText('3.310');
+  await page.getByLabel('Future tax illustration').selectOption('general');
+  await page.getByRole('button', { name: 'Save strategy', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Investment strategy saved');
+  await expect(page.getByRole('button', { name: 'Use budget in planner' })).toBeDisabled();
+  await page.getByLabel('Future tax illustration').selectOption('none');
+  await page.getByRole('button', { name: 'Save strategy', exact: true }).click();
+  await page.getByRole('button', { name: 'Make preferred', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Preferred strategy saved');
+  await page.goto('./#/strategies');
+  await page.reload();
+  await expect(page.getByLabel('Strategy name', { exact: true })).toHaveValue(
+    'Cloud Danish index fund',
+  );
+  await expect(page.locator('.strategy-outcomes')).toContainText('3.310');
+  await page.getByRole('button', { name: 'New strategy', exact: true }).click();
+  await page.getByLabel('Strategy name', { exact: true }).fill('Cloud all-country ETF');
+  await page.getByLabel('Investment 1', { exact: true }).selectOption('spyi');
+  await page.getByLabel('Strategy starting money (DKK)').fill('0');
+  await page.getByLabel('Strategy monthly contribution (DKK)').fill('1000');
+  await page.getByLabel('Future tax illustration').selectOption('annual');
+  await page.getByRole('button', { name: 'Save strategy', exact: true }).click();
+  await page
+    .getByLabel('Compare with saved strategy')
+    .selectOption({ label: 'Cloud Danish index fund' });
+  await expect(page.locator('.strategy-outcome')).toHaveCount(2);
+  for (const outcome of await page.locator('.strategy-outcome').all()) {
+    await expect(outcome).toContainText('3.000');
+    await expect(outcome).toContainText('3.310');
+  }
+  await expect(page.getByRole('button', { name: 'Use budget in planner' })).toBeEnabled();
+});

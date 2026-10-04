@@ -13,7 +13,7 @@ import { PageHeading, Field, Note, Empty, Modal } from '../components/ui';
 import { HoldingPeriodAnalysis } from '../components/HoldingPeriodAnalysis';
 import { StrategyChart } from '../components/charts';
 import { FundFacts } from '../components/FundFacts';
-import { weightedFundCost, fundFacts } from '../../shared/fund-facts';
+import { weightedFundCost, strategyTaxIssue } from '../../shared/fund-facts';
 import { money, number, percent } from '../lib/format';
 
 export default function Strategies() {
@@ -78,9 +78,7 @@ export default function Strategies() {
   const dirty = !saved || JSON.stringify(saved) !== JSON.stringify(draft);
   const validation = strategySchema.safeParse(draft);
   const fundCost = weightedFundCost(draft, instruments);
-  const taxOnSaleMismatch =
-    draft.account === 'general' &&
-    draft.allocations.some((a) => fundFacts(getInstrument(a.instrumentId)).taxStatus === 'listed');
+  const taxIssue = strategyTaxIssue(draft, instruments);
   const competitor = data.strategies.find((s) => s.id === compareId && s.id !== draft.id);
   let results: StrategyResult[] = [];
   let months: string[] = [];
@@ -342,16 +340,16 @@ export default function Strategies() {
               <option value="annual">Rebalance each December</option>
             </select>
           </Field>
-          {taxOnSaleMismatch && (
+          {taxIssue && (
             <p className="form-error" role="alert">
-              This strategy includes a fund on SKAT’s equity-investment-company list. Its
-              ordinary-account illustration needs annual taxation rather than tax on sale.
+              {taxIssue}
             </p>
           )}
           <p className="text-small muted">
             Weighted annual fund costs:{' '}
             {fundCost === null ? 'not fully verified' : `${number(fundCost, 2)}%`}. These can be
-            used in the future planner; trading charges remain separate.
+            used in the future planner. Fund transaction costs, entry/exit charges and broker fees
+            remain separate; historical returns already include fund expenses.
           </p>
           <Field
             label="Future tax illustration"
@@ -402,7 +400,7 @@ export default function Strategies() {
               <button
                 type="button"
                 className="button secondary"
-                disabled={saving || dirty || taxOnSaleMismatch}
+                disabled={saving || dirty || !!taxIssue}
                 onClick={() => void useInPlanner()}
               >
                 Use budget in planner

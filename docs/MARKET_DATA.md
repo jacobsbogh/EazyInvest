@@ -2,6 +2,14 @@
 
 The current implementation uses free Danish reference metadata, historical prices and exchange trade reports. Read [the implementation and source boundaries](FREE_DANISH_DATA.md) for coverage, price adjustments and verification commands.
 
+The catalog also includes four issuer-verified Danish index funds and eight UCITS
+ETFs. [The fund expansion](FUND_EXPANSION.md) records exact listings, cost/tax
+provenance and independently checked free-history ranges. The official ESMA share
+refresh only retires ordinary shares; it preserves issuer-managed fund definitions.
+Run `node jobs/lib/jobs/src/verify-market.js --funds` after `npm run build:jobs` to
+check the eight additions without accessing Firebase. Production activation of the
+broadened catalog and fund expansion remains pending.
+
 ## Configure the restricted writer
 
 1. Keep Firebase on Spark. Create a separate email/password account for the market job, preserving the existing owner UID. Set `config/access.marketWriterUid` to that account's UID. The writer must never be the owner.
@@ -16,6 +24,12 @@ The current implementation uses free Danish reference metadata, historical price
 Immediate name/ticker/ISIN search covers the full local Danish catalogue. Main Market and First North have separate filters and a paginated table. **Search markets** queues discovery of additional supported US listings through Yahoo's public search. Up to three searches and two requested histories run before routine imports. Completed history requests rotate by their last check. New reference ISINs receive bounded, rotating exact-ISIN lookups.
 
 Unsupported histories remain missing. Network errors, malformed responses and permission errors retain previous data; quota responses stop additional history calls. An older saved quote is marked stale. Free-source coverage is per listing, not guaranteed by its presence in the official reference catalogue.
+
+Nasdaq cancellation/amendment events are resolved across all downloaded sample
+files using transaction identity before selecting a trade. Known-invalid cached
+references are cleared even when history refresh fails. Existing references
+without transaction identity are conservatively removed for an invalidated ISIN.
+Unavailable reports retain valid earlier references with their original dates.
 
 ECB history is fetched once per run. EUR conversion uses DKK/EUR, USD uses (DKK/EUR)/(USD/EUR), and DKK uses 1. Each historical observation uses a reference on or before its own date, no more than seven days earlier. Missing FX remains missing; current holdings quotes remain separate from return history.
 

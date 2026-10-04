@@ -1,5 +1,6 @@
 import { instrumentSchema, providerInstrumentId, type Instrument } from './instrument.js';
 import danishCatalog from './danish-listings.json' with { type: 'json' };
+import { additionalFunds } from './fund-catalog.js';
 export type { Instrument } from './instrument.js';
 export const instruments: Instrument[] = [
   {
@@ -156,3 +157,4 @@ for (const listing of danishListings) {
   else instruments.push(listing);
 }
 export const danishCatalogDate = danishCatalog.asOf;
+instruments.push(...additionalFunds);

@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { danishListings, instruments } from '../../shared/catalog.js';
+import { additionalFunds } from '../../shared/fund-catalog.js';
 import { fetchYahooSeries } from './yahoo.js';
 import { fetchEcbHistory } from './ecb.js';
 import { fetchNasdaqReferences } from './nasdaq.js';
@@ -30,20 +31,23 @@ const report: {
   nasdaqSample: 0,
   results: [],
 };
-let references: Awaited<ReturnType<typeof fetchNasdaqReferences>> = new Map();
+let references: ReadonlyMap<string, { isin: string }> = new Map();
 try {
   references = await fetchNasdaqReferences();
   report.nasdaqSample = references.size;
 } catch {
   console.warn('Nasdaq sample unavailable at verification time.');
 }
-const selected = process.argv.includes('--sample')
-  ? danishListings.filter((item) =>
-      ['NOVO-B.CO', 'DANSKE.CO', 'VWS.CO', 'MAERSK-A.CO', 'MAERSK-B.CO', 'MONSO.CO'].includes(
-        item.yahooSymbol ?? '',
-      ),
-    )
-  : danishListings;
+const fundsOnly = process.argv.includes('--funds');
+const selected = fundsOnly
+  ? additionalFunds
+  : process.argv.includes('--sample')
+    ? danishListings.filter((item) =>
+        ['NOVO-B.CO', 'DANSKE.CO', 'VWS.CO', 'MAERSK-A.CO', 'MAERSK-B.CO', 'MONSO.CO'].includes(
+          item.yahooSymbol ?? '',
+        ),
+      )
+    : [...danishListings, ...additionalFunds.filter((item) => item.kind === 'Fund')];
 let failed = 0;
 let throttled = false;
 for (const item of selected) {
@@ -77,7 +81,7 @@ for (const item of selected) {
   await new Promise((resolve) => setTimeout(resolve, 300));
 }
 // Also verify all existing ETF/US references so the entire job can run free.
-for (const item of instruments.filter((item) => !item.mic)) {
+for (const item of fundsOnly ? [] : instruments.filter((item) => !item.mic)) {
   if (throttled) break;
   const id = item.id;
   try {

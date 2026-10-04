@@ -104,3 +104,16 @@ is copied into a future expected-return input. Budgets, goals, selected tax mode
 and verified weighted fund charges can be carried deliberately into the planner.
 Unknown costs retain the planner's existing explicit fee assumption. See
 [fund-fact provenance and tax limits](FUND_FACTS.md).
+
+For Danish distributing index funds, adjusted history assumes reinvested
+distributions before personal tax. Their verified ordinary-account treatment
+includes tax on realised gains and distributions. The planner currently has no
+distribution-tax cash flow, so that handoff is blocked for ordinary accounts.
+Unknown fund tax classifications also block ordinary-account handoff. Annual-tax
+positive-list ETFs require the annual illustration. These guards do not change
+historical returns or establish ASK eligibility.
+
+The weighted strategy fee is annual ongoing charges/TER only. Fund transaction
+estimates, maximum entry/exit charges and broker/FX costs are disclosed separately.
+Unknown investment-company fund costs make the weighted aggregate unavailable;
+the planner retains its explicit fee input rather than substituting zero.

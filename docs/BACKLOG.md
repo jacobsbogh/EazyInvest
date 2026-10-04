@@ -3,7 +3,7 @@
 ## Release follow-up (owner-led)
 
 1. Confirm the owner's direct sign-in/save/reload/sign-out check on the [published first release](https://jacobsbogh.github.io/EazyInvest/). Dedicated email/password sign-in, Belgium Firestore on Spark, owner UID configuration, rules and Pages publication are complete. Automated emulator tests cover owner persistence and unrelated-account denial; see [release status](DEPLOYMENT.md). Do not upgrade billing.
-2. Free historical data is connected and verified for VWCE, EUNL, IS3N, SXR8 and MSFT; see [the market-data runbook](MARKET_DATA.md). Monthly adjusted history, separate current quotes, ECB FX, a restricted writer and 20-year/full-history views are published. Find another free source for Novo B's exact Danish DKK listing; do not substitute a different venue, share class or ADR. Observe the first scheduled update.
+2. Free historical data is published for VWCE, EUNL, IS3N, SXR8 and MSFT. The broader free Yahoo/Nasdaq implementation covers the exact Novo B listing and 146 Danish shares; four domestic funds and four additional UCITS ETFs are verified on the review branch. Deploy matching rules, merge, import and publish after production authorization, then observe the first scheduled update. See [the market-data runbook](MARKET_DATA.md) and [fund expansion](FUND_EXPANSION.md).
 3. Keep GitHub Pages build variables and the authorized hostname in Firebase Auth current. Repository and CI are connected; publication is manual and subpath browser tests are implemented.
 4. Configure the desired scheduled development workflow, model, run budget, and review process. There is no existing schedule to modify.
 
@@ -11,6 +11,8 @@
 
 - Research separately labelled market benchmarks for periods predating the catalog ETFs. Never extend a fund's history with another investment's data.
 - Maintain issuer-cost checks and reviewed SKAT snapshots for new years/listings; see [fund-fact provenance](FUND_FACTS.md). Add a capital-income projection only after documenting its assumptions and inputs.
+- Model Danish distributing funds' ordinary-account tax cash flows with explicit distribution assumptions, reinvestment and realised-gain timing. Keep existing handoff guards until independently verified.
+- Load selected histories on demand and update current quotes separately from seven-day historical downloads to make the expanded catalog faster and more current.
 - Add transaction editing with the same complete-ledger validation as import and deletion, plus an audit trail.
 - Add dated portfolio snapshots and clearly distinguish deposits/withdrawals from performance. Define the cash-account model before implementing time-weighted or money-weighted returns.
 - Support additional broker CSV formats only with representative sanitized fixtures and explicit mappings.
@@ -35,3 +37,8 @@ allocations, notes and preferred choice; matching-budget DKK backtests with annu
 rebalancing, cash baseline and deposit-adjusted drawdown/recovery; dashboard and
 planner connections; issuer charges and an exact-ISIN reviewed 2026 SKAT snapshot.
 See [implementation and verification](STRATEGY_MILESTONE.md).
+
+Catalog expansion: 146 regulator-referenced Danish ordinary shares, four Danish
+index funds and eight total UCITS ETFs; exact provider listings and dated cost/tax
+evidence; separate fund-cost components; conservative unknown investment-company
+facts and Nasdaq cancellation handling. See [fund expansion](FUND_EXPANSION.md).

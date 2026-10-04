@@ -15,6 +15,12 @@ Yahoo daily bars are reduced to the last available observation in each calendar 
 
 Three investment companies are ordinary share listings in ESMA but classified as funds by Yahoo. Their verified provider classification is stored explicitly; the adapter does not relax type checks for other securities. Ress Life Investments trades in **EUR** in Copenhagen, and is converted to DKK using dated ECB rates. The other 145 listings were verified in DKK. Copenhagen venue does not imply DKK denomination.
 
+The [fund expansion](FUND_EXPANSION.md) adds four Danish index funds outside the
+ordinary-share reference feed and four UCITS ETFs. It also corrects unknown
+investment-company costs/tax checks and resolves cancellations/amendments across
+Nasdaq sample files using transaction identity. The original 146-share universe
+is unchanged.
+
 ## Operation
 
 `npm run update:danish-catalog` fetches the complete reference subset and resolves symbols by ISIN before replacing the bundled metadata snapshot. It writes no stock prices into git. The market job refreshes official references, rotates bounded unresolved-ISIN lookups, imports all mapped Danish histories automatically, and prioritizes owner-requested histories. Registry reads use bounded 100-document pages. Existing IDs, strategies, trades and backups remain readable when discovered listings enter a newer bundled snapshot.

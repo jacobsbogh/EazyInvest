@@ -188,6 +188,7 @@ export const marketSchema = z
         mic: z.enum(['XCSE', 'DSME', 'FNDK']),
         reportFile: z.string().regex(/^NordicEquity-posttrade-\d{4}-\d{2}-\d{2}T\d{4}$/),
         fetchedAt: z.string().datetime(),
+        transactionId: z.string().min(1).max(100).optional(),
       })
       .optional(),
     quote: z.object({ date: dateSchema, close: z.number().finite().positive() }).optional(),

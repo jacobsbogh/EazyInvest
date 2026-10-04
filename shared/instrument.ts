@@ -9,7 +9,7 @@ export const instrumentSchema = z
     ticker: z.string().trim().min(1).max(30),
     exchange: z.string().min(1).max(30),
     currency: z.enum(['EUR', 'USD', 'DKK']),
-    kind: z.enum(['ETF', 'Stock']),
+    kind: z.enum(['ETF', 'Stock', 'Fund']),
     region: z.string().min(1).max(60),
     description: z.string().max(1000),
     isin: z.string().refine((value) => value === '' || /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(value)),
@@ -40,11 +40,12 @@ export const instrumentSchema = z
   .refine(
     (item) =>
       item.yahooType !== 'MUTUALFUND' ||
+      (item.kind === 'Fund' && item.isin !== '' && item.sourceKind === 'issuer') ||
       (item.kind === 'Stock' &&
         item.mic !== undefined &&
         item.isin !== '' &&
         item.sourceKind === 'regulator'),
-    'A provider fund classification requires an official Danish share reference.',
+    'A provider fund classification requires issuer evidence or an official Danish share reference.',
   );
 export type Instrument = z.infer<typeof instrumentSchema>;
 

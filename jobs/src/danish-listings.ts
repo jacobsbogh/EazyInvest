@@ -43,7 +43,9 @@ export function mergeDanishListings(current: Instrument[], previous: Instrument[
   merged.push(
     ...previous
       .filter((item) => !present.has(item.id))
-      .map((item) => ({ ...item, referenceStatus: 'retained' as const })),
+      .map((item) =>
+        item.kind === 'Stock' ? { ...item, referenceStatus: 'retained' as const } : item,
+      ),
   );
   return merged.sort((a, b) => a.name.localeCompare(b.name, 'da'));
 }

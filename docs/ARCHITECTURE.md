@@ -47,10 +47,21 @@ The Tuesday–Saturday schedule runs at 05:37 UTC only when `MARKET_SYNC_ENABLED
 
 ## Code and verification
 
-- `src/pages/`: seven screens; `src/lib/`: state, cloud adapters and import/export.
+- `src/pages/`: eight screens; `src/lib/`: state, cloud adapters and import/export.
 - `shared/`: deterministic calculations, tax snapshot, schemas and catalog.
 - `jobs/`: provider adapter and GitHub Actions entry point.
 - `firestore.rules`: ownership, data bounds, revisions and writer isolation.
 - Tests cover calculations, parsing, real emulator transactions, rules, password sign-in and invalid credentials, desktop/mobile UI and Pages subpaths.
 
 The deployment has configured authorized domains, the dedicated password owner's UID, and a Belgium Firestore database on Spark. See [release status](DEPLOYMENT.md) and [market-data status](MARKET_DATA.md). Free provider coverage is checked at ingestion; unsupported catalog listings remain missing. No trades, broker connections, analytics or in-app AI calls are implemented.
+
+`shared/fund-catalog.ts` defines exact issuer-reviewed domestic fund and additional
+UCITS listings; `shared/data/fund-facts.json` stores independently dated costs and
+domestic tax classifications. `Fund` is distinct from the provider's security type:
+Yahoo classifies the four Danish fund listings as `EQUITY`. Explicit provider
+`MUTUALFUND` investment-company shares also participate in fee/tax checks. Exact
+ISIN matching, current-year checks and conservative planner handoff guards prevent
+unknown classifications from appearing as zero fees or ordinary share tax.
+
+Initial cloud cache loading merges previously discovered listings instead of
+overwriting them: owner research can proceed while the larger catalog loads.

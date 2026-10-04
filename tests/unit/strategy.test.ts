@@ -200,6 +200,28 @@ describe('independent historical portfolio calculations', () => {
   });
 });
 describe('verified fund and tax facts', () => {
+  it('keeps charges and tax classification unknown for investment-company shares', () => {
+    const companies = instruments.filter(
+      (item) => item.kind === 'Stock' && item.yahooType === 'MUTUALFUND',
+    );
+    expect(companies).toHaveLength(3);
+    for (const item of companies) {
+      expect(fundFacts(item, 2026).cost).toBeUndefined();
+      expect(fundFacts(item, 2026).taxStatus).not.toBe('not-applicable');
+      expect(
+        weightedFundCost(
+          strategy({ allocations: [{ instrumentId: item.id, weight: 100 }] }),
+          instruments,
+        ),
+      ).toBeNull();
+    }
+    expect(
+      weightedFundCost(
+        strategy({ allocations: [{ instrumentId: 'msft', weight: 100 }] }),
+        instruments,
+      ),
+    ).toBe(0);
+  });
   it('matches exact ISINs and exposes current-year uncertainty', () => {
     expect(fundFacts(getInstrument('eunl'), 2026).taxStatus).toBe('listed');
     expect(fundFacts(getInstrument('vwce'), 2026).taxStatus).toBe('not-found');
